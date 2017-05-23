@@ -1,0 +1,50 @@
+You kind of touched on it with your comment "can I get all the headers in one directory" That is the setting INCLUDEPATH, but you have it set incorrectly.
+
+There are a few issues in what you are doing.
+
+First, your INCLUDEPATH is incorrect. It should be set to the "include" directory of the files that you've installed.
+Second, you haven't included the library in your build- so even if your include files resolved, you would get link errors. This is because you haven't specified where the binary library files are.
+Third, you didn't specify if your VTK build was static or dynamic. I'll assume this is dynamic. IF you don't know what this means, please look that up. The big difference is: do you need to also copy a .dll file to where your program is running from. If you have dynamic, the answer is yes.
+About the comment a out the install target: with cmake you can set an option to change where it installs the binaries to. So the process goes like this with cmake:
+
+1) Get the sources unpacked to a directory that you like.
+
+2) Run cmake build folder (which you set to bin). What you did was confusing, because the build folder will contain everything: not just binaries, but headers and other install stuff. I usually call it "build"
+
+3) Once cmake configures it may prompt for more configuration. This is where you may want to configure Qt for VTK. In this step you tell cmake where the Qt cmake folders are, so that you can configure VTK to build Qt stuff
+
+4) Now you can change the default install path. By default, when you build the INSTALL project with visual studio (I'll describe below) it installs somewhere in program files. You can change this by setting CMAKE_INSTALL_PREFIX to whatever you want. For example: C:\VTK\install
+
+5) Click generate to generate the visual studio project files or Make files, depending on your build configuration.
+
+6) For visual studio: open the solution in the build directory and build all. When this completes, to install the files (#4) run the INSTALL project.
+
+7) For Make files: run make (if you have multiple cores, use -jX where X is twice number of cores) then make install (don't use -j with make install)
+
+Ok at this point you've compiled and installed the VTK distribution. Now you should fix your paths in your Qt .pro file.
+
+For example:
+
+INSTALLPATH+=C:/VTK/install/include
+I don't know which libs you need, but below you should see the pattern:
+
+LIBS+=-LC:/VTK/install/lib \
+      -lvtkRenderingCore-6.3
+Now after this, since you have a dynamic build you need to copy the .dll files next to the exe file that you are creating from your Qt projectd.
+
+Good luck!
+
+NOTE :
+When you configure vtk source with cmake you should check "Module_vtkGUISupportQt" and "Module_vtkGUISupportQtOpenGL" options to able to work with qt.Also you have to do some config in Run & Build Options in Qt such as selecting compiler, kits etc.
+
+NOTE : 
+To rebuild 
+Remove the shadow build directory that Qt Creator has made for you. You will find it above the project directory, its name begins with build-.
+
+
+NOTE : 
+Include following lines before including any vtk headers 
+#include <vtkAutoInit.h>
+ VTK_MODULE_INIT(vtkRenderingOpenGL2)
+
+
