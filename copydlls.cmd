@@ -29,6 +29,6 @@ if [%arg%]==[release] (
 :main
 echo Copying dlls for %destdir%
 
-robocopy /NFL /NDL /NJH /NJS /nc /ns /np D:\repos\vtk\build\bin\%mode%\ %destdir% *.dll
+robocopy /NFL /NDL /NJH /NJS /nc /ns /np D:\repos\vtk_release\build_release\bin\%mode%\ %destdir% *.dll
 
 endlocal

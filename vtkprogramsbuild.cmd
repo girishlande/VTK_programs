@@ -28,8 +28,12 @@ if [%arg%]==[release] (
 
 :main
 mkdir build
-
 pushd build
+
 cmake ../Source
 cmake --build . --config %mode
+
 popd
+
+endlocal
+
