@@ -21,6 +21,13 @@ find_package(VTK 8.2 COMPONENTS
   REQUIRED
 )
 
+if(VTK_FOUND)
+  message("Vtk found")
+else()
+  message("Vtk NOT found!")
+endif()
+
+
 include_directories(${VTK_INCLUDE_DIRS})
 
 add_executable(add_key_points_different_color_planes add_key_points_different_color_planes.cpp )
