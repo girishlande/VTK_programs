@@ -178,16 +178,22 @@ void MainWindow::test2() {
 
   vtkNew<vtkActor2D> imageActor;
   imageActor->SetMapper(imageMapper);
-  imageActor->SetPosition(0, 0);
-  vtkCoordinate * p1 = imageActor->GetPositionCoordinate();
-  p1->SetValue(0, 0);
-  vtkCoordinate * p2 = imageActor->GetPosition2Coordinate();
-  p2->SetValue(0.3, 0.2);
 
-  vtkNew<vtkNamedColors> colors;
-  m_vtkImageViewer->GetRenderer()->AddActor2D(imageActor);
+  double bottomLeftX = m_topoMarginLeft;
+  double bottomLeftY = 1.0 - (m_topoViewHeight + m_topoMarginTop);
+  double topRightX = m_topoMarginLeft + m_topoViewWidth;
+  double topRightY = 1.0f - m_topoMarginTop;
+  vtkCoordinate *p2 = imageActor->GetPosition2Coordinate();
+  p2->SetValue(1.0, 1.0);
 
-  m_vtkImageViewer->GetRenderer()->ResetCamera();
+  m_renderer = vtkSmartPointer<vtkRenderer>::New();
+  m_renderer->SetViewport(bottomLeftX, bottomLeftY, topRightX, topRightY);
+  m_renderer->AddActor2D(imageActor);
+  m_vtkView->GetRenderWindow()->AddRenderer(m_renderer);
+
+  ViewportBorder();
+  drawAxialLine();
+
   m_vtkView->GetRenderWindow()->Render();
 }
 
@@ -270,6 +276,9 @@ void MainWindow::ReadInputDICOM() {
   m_dicom_image = m_dicom_reader->GetOutput();
 }
 
+// -------------------------
+// Create viewport border 
+// -------------------------
 void MainWindow::ViewportBorder() {
   // points start at upper right and proceed anti-clockwise
   vtkNew(vtkPoints, points);
@@ -315,6 +324,9 @@ void MainWindow::ViewportBorder() {
   m_renderer->AddViewProp(actor);
 }
 
+// ---------------------------------------------------------------------
+// Draw axial line indicating slide position in side view of the image
+// ---------------------------------------------------------------------
 void MainWindow::drawAxialLine() {
   // points start at upper right and proceed anti-clockwise
   vtkNew(vtkPoints, points);
@@ -357,6 +369,9 @@ void MainWindow::drawAxialLine() {
   m_renderer->AddViewProp(actor);
 }
 
+// ----------------------------------
+// Handle slider position change
+// ----------------------------------
 void MainWindow::sliderChanged(int value) {
   if (m_vtkImageViewer) {
     m_vtkImageViewer->SetSlice(value);
@@ -373,6 +388,9 @@ void MainWindow::sliderChanged(int value) {
 
 void MainWindow::updateSlider(int value) { m_slider->setValue(value); }
 
+// --------------------
+// Fetch YZ image 
+// --------------------
 void MainWindow::fetchYZImage(vtkSmartPointer<vtkImageData>& input,
                               vtkSmartPointer<vtkImageData>& output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
@@ -398,6 +416,9 @@ void MainWindow::fetchYZImage(vtkSmartPointer<vtkImageData>& input,
   }
 }
 
+// ------------------------------------
+// Update axial line for topo image 
+// ------------------------------------
 void MainWindow::updateAxialLine() {
   int current = m_vtkImageViewer->GetSlice();
   int min = m_vtkImageViewer->GetSliceMin();
@@ -412,6 +433,9 @@ void MainWindow::updateAxialLine() {
   }
 }
 
+// ---------------------------------------
+// Display details about Image actor
+// ---------------------------------------
 void MainWindow::displayImageActorDetails(vtkImageActor* imageActor) {
   cout << "\n\n bounds:";
   double b[6];
@@ -426,6 +450,9 @@ void MainWindow::displayImageActorDetails(vtkImageActor* imageActor) {
   }
 }
 
+// ---------------------------------------
+// Display details about renderer
+// ---------------------------------------
 void MainWindow::displyRendererDetails(vtkRenderer* renderer) {
   int* pOrigin = renderer->GetOrigin();
   int* pSize = renderer->GetSize();
@@ -433,6 +460,9 @@ void MainWindow::displyRendererDetails(vtkRenderer* renderer) {
        << "  Size:" << pSize[0] << "  " << pSize[1];
 }
 
+// ----------------------------------------------
+// Calculate how big viewport should be for image
+// ----------------------------------------------
 void MainWindow::calculateViewportDetails(vtkImageActor* imageActor) {
   double b[6];
   imageActor->GetDisplayBounds(b);

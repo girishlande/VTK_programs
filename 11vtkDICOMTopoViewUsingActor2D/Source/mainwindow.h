@@ -79,6 +79,11 @@ class MainWindow : public QMainWindow {
   QScrollBar* m_slider;
   int m_minSliceNumber;
   int m_maxSliceNumber;
+
+  double m_topoViewWidth = 0.3;
+  double m_topoViewHeight = 0.2;
+  double m_topoMarginTop = 0.05;
+  double m_topoMarginLeft = 0.03;
 };
 
 #endif  // MAINWINDOW_H
