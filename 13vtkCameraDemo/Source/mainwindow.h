@@ -34,10 +34,14 @@ class MainWindow : public QMainWindow {
   void updateSlider(int value);
 
  protected:
-  void AddSphereActor(vtkRenderer* renderer);
+  void AddSphereActor(vtkRenderer* renderer,double position[3]);
   void setUpSlider(QScrollBar** slider);
   void cacheCameraPosition();
   void refreshView();
+  void addCoordinateSystem();
+  void AddLine(double pt1[3], double pt2[3], double color[3]);
+  void AddCS1();
+  void AddCS2();
 
  private slots:
 
@@ -50,6 +54,10 @@ class MainWindow : public QMainWindow {
   void sliderChangedX(int value);
   void sliderChangedY(int value);
   void sliderChangedZ(int value);
+  void XView();
+  void YView();
+  void ZView();
+
   
 private:
   Ui::MainWindow* ui;
@@ -76,7 +84,9 @@ private:
   double m_parallelScale;
   double m_zoom;
 
-
+  double m_position[3] = {0, 0, 0};
+  double m_sphereCounter = 0;
+  double m_radius = 10;
 };
 
 #endif  // MAINWINDOW_H
