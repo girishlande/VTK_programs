@@ -137,6 +137,8 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
 // Test functions
 // -----------------------
 void MainWindow::test1() {
+  test2();
+  return;
   vtkSmartPointer<vtkImageData> imageData = m_dicom_reader->GetOutput();
   vtkNew(vtkImageData, output);
   fetchYZImage(imageData, output);

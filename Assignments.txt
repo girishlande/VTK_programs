@@ -1,0 +1,7 @@
+1. Read DICOM folder and display images as stack which can be scrolled using scrollbar
+2. Display images with different spacing . that means you may have to read all images from folder one by one 
+   and treat it as separate vtkImageData
+3. Show Row x columns layout. This should be configurable. And display images in this form. 
+4. Show corner text for all images. 
+5. Show legend in view. A cube indicating which orientation is being used. 
+6. Demo Use of vtkImageSlice 
