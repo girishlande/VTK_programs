@@ -160,6 +160,8 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QString dirpath = dirname.absolutePath();
   m_dicom_dir_path = dirpath;
 
+  m_imageFiles.clear();
+
   QStringList stringlist;
   stringlist << "*.dcm";
   QStringList images = dirname.entryList(stringlist, QDir::Files);
@@ -328,7 +330,6 @@ void MainWindow::readSingleImage() {
   m_imageactor = imageActor.Get();
   imageActor->SetInputData(reader->GetOutput());
 
-  vtkNew<vtkNamedColors> colors;
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
   m_vtkView->GetRenderWindow()->AddRenderer(m_renderer);
   m_renderer->AddActor2D(imageActor);
@@ -339,6 +340,7 @@ void MainWindow::readSingleImage() {
 }
 
 void MainWindow::readAllImages() {
+  m_imagedata.clear();
   for (auto filename : m_imageFiles) {
     std::string filepath = m_dicom_dir_path.toStdString() + "/" + filename;
     vtkNew(vtkDICOMImageReader, reader);
@@ -426,24 +428,17 @@ void MainWindow::LayoutChanged(int index) {
             << " Row:" << config.row << " Col:" << config.col;
   m_row = config.row;
   m_col = config.col;
+  m_currentSliceNumber = 0;
   createMultipleViewports(config.row, config.col);
   SynchronizeSlider();
 }
 
 void MainWindow::createMultipleViewports(int rows, int cols) {
+  ClearViewports();
+
   vtkNew(vtkNamedColors, colors);
   vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
-
-  vtkRendererCollection* col = renderWindow->GetRenderers();
-  int size = col->GetNumberOfItems();
-  for (int p = 0; p < size; p++) {
-    vtkRenderer* ren = (vtkRenderer*)col->GetItemAsObject(p);
-    if (ren) renderWindow->RemoveRenderer(ren);
-  }
-  m_renderers.clear();
-  m_imageActors.clear();
-  m_sliceNumbers.clear();
-
+   
   double xstep = 1.0 / cols;
   double ystep = 1.0 / rows;
   for (int i = 0; i < rows; ++i) {
@@ -464,6 +459,12 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
       renderer->AddActor(actor);
       // renderer->SetBackground(colors->GetColor3d("SlateGray").GetData());
       m_renderers.push_back(renderer.Get());
+
+      vtkNew<vtkImageActor> imageactor;
+      renderer->AddActor2D(imageactor);
+      m_imageActors.push_back(imageactor.Get());
+
+      AddSliceNumberCornerText(0, renderer);
 
       double viewport[4];
       viewport[0] = j * xstep;
@@ -539,16 +540,14 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
 void MainWindow::AddImagesInViewports() {
   int index = m_currentSliceNumber;
   for (int i = 0; i < m_renderers.size(); i++) {
-    if (index > m_imageFiles.size()) break;
+    if (index >= m_imageFiles.size()) break;
 
     int rendererIndex = MapViewportNumber(i);
     vtkRenderer* r = m_renderers[rendererIndex];
-    vtkNew<vtkImageActor> imageActor;
+    vtkImageActor* imageActor = m_imageActors[rendererIndex];
     imageActor->SetInputData(m_imagedata[index]);
-    r->AddActor2D(imageActor);
-    m_imageActors.push_back(imageActor.Get());
-
-    AddSliceNumberCornerText(index, r);
+    imageActor->Modified();
+    UpdateSliceNumberCornerText(index, rendererIndex);
     index++;
   }
 }
@@ -617,4 +616,18 @@ void MainWindow::UpdateSliceNumberCornerText(int sliceNumber,
     sliceMapper->SetInput(msg.c_str());
     sliceMapper->Update();
   }
+}
+
+void MainWindow::ClearViewports() {
+  vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
+
+  vtkRendererCollection* col = renderWindow->GetRenderers();
+  int size = col->GetNumberOfItems();
+  for (int p = 0; p < size; p++) {
+    vtkRenderer* ren = (vtkRenderer*)col->GetItemAsObject(p);
+    if (ren) renderWindow->RemoveRenderer(ren);
+  }
+  m_renderers.clear();
+  m_imageActors.clear();
+  m_sliceNumbers.clear();
 }

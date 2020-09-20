@@ -72,6 +72,7 @@ class MainWindow : public QMainWindow {
   void AddSliceNumberCornerText(int sliceNumber, vtkRenderer* renderer);
   int MapViewportNumber(int index);
   void SynchronizeSlider();
+  void ClearViewports();
 
  private:
 
