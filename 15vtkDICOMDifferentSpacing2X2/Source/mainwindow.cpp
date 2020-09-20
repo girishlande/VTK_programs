@@ -161,6 +161,7 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   m_dicom_dir_path = dirpath;
 
   m_imageFiles.clear();
+  m_currentSliceNumber = 0;
 
   QStringList stringlist;
   stringlist << "*.dcm";
@@ -457,7 +458,7 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
 
       vtkNew(vtkRenderer, renderer);
       renderer->AddActor(actor);
-      // renderer->SetBackground(colors->GetColor3d("SlateGray").GetData());
+      //renderer->SetBackground(colors->GetColor3d("SlateGray").GetData());
       m_renderers.push_back(renderer.Get());
 
       vtkNew<vtkImageActor> imageactor;
@@ -565,6 +566,7 @@ void MainWindow::UpdateImagesInViewports() {
     }
     UpdateSliceNumberCornerText(index, rendererIndex);
     index++;
+    m_renderers[rendererIndex]->Render();
   }
   m_vtkView->GetRenderWindow()->Render();
 }
