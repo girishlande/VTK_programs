@@ -18,6 +18,8 @@ class vtkRenderer;
 class vtkActor2D;
 class vtkPoints;
 class vtkImageActor;
+class myVtkInteractorStyleImage;
+class TopoViewer;
 
 namespace Ui {
 class MainWindow;
@@ -33,7 +35,6 @@ class MainWindow : public QMainWindow {
   explicit MainWindow(QWidget* parent = 0);
   ~MainWindow();
 
-  void checkActiveRenderer(vtkRenderer* renderer);
   void updateSlider(int value);
 
  protected slots:
@@ -46,16 +47,9 @@ class MainWindow : public QMainWindow {
 
  protected:
   void UpdateViewForDICOM();
-  void initialiseWithDICOM();
   void ReadInputDICOM();
-  void ViewportBorder();
-  void fetchYZImage(vtkSmartPointer<vtkImageData>& input,
-                                vtkSmartPointer<vtkImageData>& output);
-  void drawAxialLine();
-  void updateAxialLine();
-  void displayImageActorDetails(vtkImageActor* actor);
-  void displyRendererDetails(vtkRenderer* renderer);
-  void calculateViewportDetails(vtkImageActor* actor);
+  void InitialiseSlider();
+  void InitialiseCornerText();
 
  private:
 
@@ -70,20 +64,14 @@ class MainWindow : public QMainWindow {
 
   vtkSmartPointer<vtkRenderer> m_renderer;
   vtkSmartPointer<vtkDICOMImageReader> m_dicom_reader;
-  vtkImageData* m_dicom_image;
-  bool m_planeVisible = false;
-
-  vtkPoints* m_axialPoints = nullptr;
-  vtkActor2D* m_axialLineActor = nullptr;
+  vtkSmartPointer<vtkImageData> m_dicom_image;
 
   QScrollBar* m_slider;
   int m_minSliceNumber;
   int m_maxSliceNumber;
 
-  double m_topoViewWidth = 0.3;
-  double m_topoViewHeight = 0.2;
-  double m_topoMarginTop = 0.05;
-  double m_topoMarginLeft = 0.03;
+  myVtkInteractorStyleImage* m_interaction = nullptr;
+  TopoViewer* m_topoviewer = nullptr;
 };
 
 #endif  // MAINWINDOW_H

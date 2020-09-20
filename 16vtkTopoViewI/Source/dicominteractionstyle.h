@@ -40,7 +40,6 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
   MainWindow* getWindow() { return m_window; }
 
  protected:
-  vtkImageViewer2* _ImageViewer;
   vtkTextMapper* _StatusMapper;
   int _Slice;
   int _MinSlice;
@@ -48,11 +47,11 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
   MainWindow* m_window;
 
  public:
+
   void SetImageViewer(vtkImageViewer2* imageViewer) {
-    _ImageViewer = imageViewer;
     _MinSlice = imageViewer->GetSliceMin();
     _MaxSlice = imageViewer->GetSliceMax();
-    _Slice = (_MinSlice + _MaxSlice) / 2;
+    _Slice = _MinSlice;
   }
 
   void SetStatusMapper(vtkTextMapper* statusMapper) {
@@ -60,6 +59,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
   }
 
   void updateSliceMsg(int sliceNumber) {
+    _Slice = sliceNumber;
     std::string msg = StatusMessage::Format(sliceNumber, _MaxSlice);
     _StatusMapper->SetInput(msg.c_str());
   }
@@ -67,11 +67,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
  protected:
   void MoveSliceForward() {
     if (_Slice < _MaxSlice) {
-      _Slice += 1;
-      _ImageViewer->SetSlice(_Slice);
-      std::string msg = StatusMessage::Format(_Slice, _MaxSlice);
-      _StatusMapper->SetInput(msg.c_str());
-      _ImageViewer->Render();
+      _Slice++;
       if (m_window) {
         m_window->updateSlider(_Slice);
       }
@@ -80,11 +76,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
 
   void MoveSliceBackward() {
     if (_Slice > _MinSlice) {
-      _Slice -= 1;
-      _ImageViewer->SetSlice(_Slice);
-      std::string msg = StatusMessage::Format(_Slice, _MaxSlice);
-      _StatusMapper->SetInput(msg.c_str());
-      _ImageViewer->Render();
+      _Slice--;
       if (m_window) {
         m_window->updateSlider(_Slice);
       }
@@ -102,9 +94,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     vtkInteractorStyleImage::OnKeyDown();
   }
 
-  virtual void OnMouseWheelForward() {
-    MoveSliceForward();
-  }
+  virtual void OnMouseWheelForward() { MoveSliceForward(); }
 
   virtual void OnMouseWheelBackward() {
     if (_Slice > _MinSlice) {

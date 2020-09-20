@@ -49,6 +49,8 @@ add_executable(vtkQTDemo
     main.cpp
 	modelinteractionstyle.h
 	dicominteractionstyle.h
+	TopoViewer.h
+	TopoViewer.cpp
     resource.qrc
 )
 
