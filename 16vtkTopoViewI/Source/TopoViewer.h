@@ -14,19 +14,30 @@ class TopoViewer {
  public:
   enum class DirectionAxis {X_AXIS,Y_AXIS,Z_AXIS};
 
-  explicit TopoViewer(vtkImageData* data,vtkRenderer* renderer);
+  explicit TopoViewer(vtkSmartPointer<vtkImageData> data,
+                      vtkSmartPointer<vtkRenderer> renderer);
   ~TopoViewer();
 
-  void Start();
-  void updateAxialLine(int slice);
   void setDirectionAxis(DirectionAxis viewingaxis, DirectionAxis topoaxis);
+  void setWindowLevel(double window, double level);
+  void setViewSize(double width, double height);
 
+  void Start();
+  void UpdateTopo(int slice);
+  
  protected:
   void Initialise();
 
   void ViewportBorder();
+  void fetchTopoImage(vtkSmartPointer<vtkImageData> output);
+
   void fetchYZImage(vtkSmartPointer<vtkImageData> input,
-                                vtkSmartPointer<vtkImageData> output);
+                    vtkSmartPointer<vtkImageData> output);
+  void fetchXZImage(vtkSmartPointer<vtkImageData> input,
+                    vtkSmartPointer<vtkImageData> output);
+  void fetchXYImage(vtkSmartPointer<vtkImageData> input,
+                    vtkSmartPointer<vtkImageData> output);
+
   void drawAxialLine();
   void displyRendererDetails(vtkRenderer* renderer);
   void calculateViewportDetails(vtkImageActor* actor);
@@ -37,8 +48,8 @@ class TopoViewer {
   vtkSmartPointer<vtkRenderer> m_renderer;
   vtkSmartPointer<vtkImageData> m_imagedata;
 
-  vtkPoints* m_axialPoints = nullptr;
-  vtkActor2D* m_axialLineActor = nullptr;
+  vtkPoints* m_linePoints = nullptr;
+  vtkActor2D* m_LineActor = nullptr;
   vtkRenderer* m_parent_renderer;
   
   int m_minSliceNumber;
@@ -51,6 +62,9 @@ class TopoViewer {
 
   DirectionAxis m_viewingaxis = DirectionAxis::Z_AXIS;
   DirectionAxis m_topoaxis = DirectionAxis::X_AXIS;
+
+  double m_window = 255.0;
+  double m_level = 127.5;
 };
 
 #endif  // MAINWINDOW_H

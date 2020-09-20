@@ -243,7 +243,7 @@ void MainWindow::sliderChanged(int value) {
     if (m_interaction) {
       m_interaction->updateSliceMsg(value);
     }
-    if (m_topoviewer) m_topoviewer->updateAxialLine(value);
+    if (m_topoviewer) m_topoviewer->UpdateTopo(value);
   }
   m_vtkImageViewer->GetRenderWindow()->Render();
 }

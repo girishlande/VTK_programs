@@ -20,8 +20,9 @@
 #include "vtkPolyLine.h"
 #include "vtkProperty2D.h"
 
-TopoViewer::TopoViewer(vtkImageData* data, vtkRenderer* renderer)
-    : m_imagedata(data), m_parent_renderer(renderer) {
+TopoViewer::TopoViewer(vtkSmartPointer<vtkImageData> imagedata,
+                       vtkSmartPointer<vtkRenderer> renderer)
+    : m_imagedata(imagedata), m_parent_renderer(renderer) {
   Initialise();
 }
 
@@ -53,14 +54,26 @@ void TopoViewer::setDirectionAxis(DirectionAxis viewingaxis,
   Initialise();
 }
 
+void TopoViewer::setWindowLevel(double window, double level) {
+  m_window = window;
+  m_level = level;
+}
+
+void TopoViewer::setViewSize(double width, double height) {
+  if (width > 0.0 && width < 1.0) m_topoViewWidth = width;
+  if (height > 0.0 && height < 1.0) m_topoViewHeight = height;
+}
+
 void TopoViewer::Start() {
+  if (!m_imagedata) return;
+
   vtkNew<vtkImageData> output;
-  fetchYZImage(m_imagedata, output);
+  fetchTopoImage(output);
 
   vtkNew<vtkImageMapper> imageMapper;
   imageMapper->SetInputData(output);
-  imageMapper->SetColorWindow(255);
-  imageMapper->SetColorLevel(127.5);
+  imageMapper->SetColorWindow(m_window);
+  imageMapper->SetColorLevel(m_level);
   imageMapper->SetRenderToRectangle(true);
 
   vtkNew<vtkActor2D> imageActor;
@@ -133,7 +146,7 @@ void TopoViewer::drawAxialLine() {
   points->SetNumberOfPoints(2);
   points->InsertPoint(0, 0, 0, 0);
   points->InsertPoint(1, 1, 0, 0);
-  m_axialPoints = points.Get();
+  m_linePoints = points.Get();
 
   vtkNew<vtkPolyLine> lines;
   lines->GetPointIds()->SetNumberOfIds(2);
@@ -159,9 +172,38 @@ void TopoViewer::drawAxialLine() {
   actor->SetMapper(mapper);
   actor->GetProperty()->SetColor(colors->GetColor3d("red").GetData());
   actor->GetProperty()->SetLineWidth(1.0);
-  m_axialLineActor = actor.Get();
+  m_LineActor = actor.Get();
 
   m_renderer->AddViewProp(actor);
+}
+
+
+// --------------------
+// Fetch topo Image
+// --------------------
+void TopoViewer::fetchTopoImage(vtkSmartPointer<vtkImageData> output) {
+  switch (m_viewingaxis) {
+    case TopoViewer::DirectionAxis::X_AXIS:
+      if (m_topoaxis == DirectionAxis::Y_AXIS)
+        fetchXZImage(m_imagedata, output);
+      else
+        fetchXYImage(m_imagedata, output);
+      break;
+    case TopoViewer::DirectionAxis::Y_AXIS:
+      if (m_topoaxis == DirectionAxis::Z_AXIS)
+        fetchXYImage(m_imagedata, output);
+      else
+        fetchYZImage(m_imagedata, output);
+      break;
+    case TopoViewer::DirectionAxis::Z_AXIS:
+      if (m_topoaxis == DirectionAxis::X_AXIS)
+        fetchYZImage(m_imagedata, output);
+      else
+        fetchXZImage(m_imagedata, output);
+      break;
+    default:
+      break;
+  }
 }
 
 // --------------------
@@ -192,19 +234,69 @@ void TopoViewer::fetchYZImage(vtkSmartPointer<vtkImageData> input,
   }
 }
 
+void TopoViewer::fetchXZImage(vtkSmartPointer<vtkImageData> input,
+                              vtkSmartPointer<vtkImageData> output) {
+  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
+  int* dims = input->GetDimensions();
+  int xdim = dims[0];
+  int ydim = dims[1];
+  int zdim = dims[2];
+
+  // Specify the size of the image data
+  output->SetDimensions(xdim, zdim, 1);
+  output->AllocateScalars(VTK_SHORT, 1);
+  output->SetSpacing(input->GetSpacing());
+  output->SetOrigin(input->GetOrigin());
+
+  // Fill every entry of the image data with "2.0"
+  for (int z = 0; z < zdim; z++) {
+    for (int x = 0; x < xdim; x++) {
+      short* pixel = static_cast<short*>(output->GetScalarPointer(x, z, 0));
+      short* sourcepixel =
+          static_cast<short*>(input->GetScalarPointer(x, ydim / 2, z));
+      pixel[0] = sourcepixel[0];
+    }
+  }
+}
+
+void TopoViewer::fetchXYImage(vtkSmartPointer<vtkImageData> input,
+                              vtkSmartPointer<vtkImageData> output) {
+  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
+  int* dims = input->GetDimensions();
+  int xdim = dims[0];
+  int ydim = dims[1];
+  int zdim = dims[2];
+
+  // Specify the size of the image data
+  output->SetDimensions(xdim, ydim, 1);
+  output->AllocateScalars(VTK_SHORT, 1);
+  output->SetSpacing(input->GetSpacing());
+  output->SetOrigin(input->GetOrigin());
+
+  // Fill every entry of the image data with "2.0"
+  for (int y = 0; y < ydim; y++) {
+    for (int x = 0; x < xdim; x++) {
+      short* pixel = static_cast<short*>(output->GetScalarPointer(x, y, 0));
+      short* sourcepixel =
+          static_cast<short*>(input->GetScalarPointer(x, y, zdim / 2));
+      pixel[0] = sourcepixel[0];
+    }
+  }
+}
+
 // ------------------------------------
 // Update axial line for topo image
 // ------------------------------------
-void TopoViewer::updateAxialLine(int current) {
+void TopoViewer::UpdateTopo(int current) {
   if (current < m_minSliceNumber || current > m_maxSliceNumber) return;
 
   float val = (float)current / m_maxSliceNumber;
-  if (m_axialPoints) {
+  if (m_linePoints) {
     double p1[3] = {0, val, 0};
     double p2[3] = {1, val, 0};
-    m_axialPoints->SetPoint(0, p1);
-    m_axialPoints->SetPoint(1, p2);
-    if (m_axialLineActor) m_axialLineActor->Modified();
+    m_linePoints->SetPoint(0, p1);
+    m_linePoints->SetPoint(1, p2);
+    if (m_LineActor) m_LineActor->Modified();
   }
 }
 
