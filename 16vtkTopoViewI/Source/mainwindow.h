@@ -13,6 +13,7 @@ class QVTKWidget;
 class QVBoxLayout;
 class vtkImageViewer2;
 class QScrollBar;
+class QRadioButton;
 class QGridLayout;
 class vtkRenderer;
 class vtkActor2D;
@@ -44,7 +45,8 @@ class MainWindow : public QMainWindow {
   void test2();
   void ProcessInput();
   void sliderChanged(int value);
-
+  void SetViewDirection(int direction);
+  
  protected:
   void UpdateViewForDICOM();
   void ReadInputDICOM();
@@ -67,6 +69,7 @@ class MainWindow : public QMainWindow {
   vtkSmartPointer<vtkImageData> m_dicom_image;
 
   QScrollBar* m_slider;
+
   int m_minSliceNumber;
   int m_maxSliceNumber;
 

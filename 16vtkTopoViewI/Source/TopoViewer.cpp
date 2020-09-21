@@ -3,22 +3,21 @@
 #include <vtkActor.h>
 #include <vtkActor2D.h>
 #include <vtkCamera.h>
+#include <vtkImageActor.h>
+#include <vtkImageData.h>
+#include <vtkImageMapper.h>
+#include <vtkLineSource.h>
+#include <vtkNamedColors.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkPolyDataMapper2D.h>
+#include <vtkPolyLine.h>
 #include <vtkProperty.h>
+#include <vtkProperty2D.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
 #include <vtkSmartPointer.h>
 
 #include <sstream>
-
-#include "vtkImageActor.h"
-#include "vtkImageData.h"
-#include "vtkImageMapper.h"
-#include "vtkLineSource.h"
-#include "vtkNamedColors.h"
-#include "vtkPolyDataMapper2D.h"
-#include "vtkPolyLine.h"
-#include "vtkProperty2D.h"
 
 TopoViewer::TopoViewer(vtkSmartPointer<vtkImageData> imagedata,
                        vtkSmartPointer<vtkRenderer> renderer)
@@ -47,28 +46,34 @@ void TopoViewer::Initialise() {
   }
 }
 
-void TopoViewer::setDirectionAxis(DirectionAxis viewingaxis,
+void TopoViewer::SetDirectionAxis(DirectionAxis viewingaxis,
                                   DirectionAxis topoaxis) {
-  m_topoaxis = topoaxis;
-  m_viewingaxis = viewingaxis;
-  Initialise();
+  assert(viewingaxis != topoaxis);
+  if (viewingaxis != topoaxis) {
+    m_topoaxis = topoaxis;
+    m_viewingaxis = viewingaxis;
+    Initialise();
+  }
 }
 
-void TopoViewer::setWindowLevel(double window, double level) {
+void TopoViewer::SetWindowLevel(double window, double level) {
   m_window = window;
   m_level = level;
 }
 
-void TopoViewer::setViewSize(double width, double height) {
+void TopoViewer::SetViewSize(double width, double height) {
   if (width > 0.0 && width < 1.0) m_topoViewWidth = width;
   if (height > 0.0 && height < 1.0) m_topoViewHeight = height;
 }
 
+// -----------------------------
+// Start displaying topo view
+// -----------------------------
 void TopoViewer::Start() {
   if (!m_imagedata) return;
 
   vtkNew<vtkImageData> output;
-  fetchTopoImage(output);
+  FetchTopoImage(output);
 
   vtkNew<vtkImageMapper> imageMapper;
   imageMapper->SetInputData(output);
@@ -92,7 +97,7 @@ void TopoViewer::Start() {
   m_parent_renderer->GetRenderWindow()->AddRenderer(m_renderer);
 
   ViewportBorder();
-  drawAxialLine();
+  DrawTopoline();
 
   m_parent_renderer->GetRenderWindow()->Render();
 }
@@ -132,7 +137,7 @@ void TopoViewer::ViewportBorder() {
   vtkNew<vtkNamedColors> colors;
   vtkNew<vtkActor2D> actor;
   actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(colors->GetColor3d("Gold").GetData());
+  actor->GetProperty()->SetColor(colors->GetColor3d(m_borderColor).GetData());
   actor->GetProperty()->SetLineWidth(4.0);
 
   m_renderer->AddViewProp(actor);
@@ -141,7 +146,7 @@ void TopoViewer::ViewportBorder() {
 // ---------------------------------------------------------------------
 // Draw axial line indicating slide position in side view of the image
 // ---------------------------------------------------------------------
-void TopoViewer::drawAxialLine() {
+void TopoViewer::DrawTopoline() {
   vtkNew<vtkPoints> points;
   points->SetNumberOfPoints(2);
   points->InsertPoint(0, 0, 0, 0);
@@ -170,46 +175,42 @@ void TopoViewer::drawAxialLine() {
   vtkNew<vtkNamedColors> colors;
   vtkNew<vtkActor2D> actor;
   actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(colors->GetColor3d("red").GetData());
+  actor->GetProperty()->SetColor(colors->GetColor3d(m_lineColor).GetData());
   actor->GetProperty()->SetLineWidth(1.0);
   m_LineActor = actor.Get();
 
   m_renderer->AddViewProp(actor);
 }
 
-
 // --------------------
 // Fetch topo Image
 // --------------------
-void TopoViewer::fetchTopoImage(vtkSmartPointer<vtkImageData> output) {
+void TopoViewer::FetchTopoImage(vtkSmartPointer<vtkImageData> output) {
   switch (m_viewingaxis) {
     case TopoViewer::DirectionAxis::X_AXIS:
       if (m_topoaxis == DirectionAxis::Y_AXIS)
-        fetchXZImage(m_imagedata, output);
+        FetchXZImage(m_imagedata, output);
       else
-        fetchXYImage(m_imagedata, output);
+        FetchXYImage(m_imagedata, output);
       break;
     case TopoViewer::DirectionAxis::Y_AXIS:
       if (m_topoaxis == DirectionAxis::Z_AXIS)
-        fetchXYImage(m_imagedata, output);
+        FetchXYImage(m_imagedata, output);
       else
-        fetchYZImage(m_imagedata, output);
+        FetchYZImage(m_imagedata, output);
       break;
     case TopoViewer::DirectionAxis::Z_AXIS:
       if (m_topoaxis == DirectionAxis::X_AXIS)
-        fetchYZImage(m_imagedata, output);
+        FetchYZImage(m_imagedata, output);
       else
-        fetchXZImage(m_imagedata, output);
+        FetchXZImage(m_imagedata, output);
       break;
     default:
       break;
   }
 }
 
-// --------------------
-// Fetch YZ image
-// --------------------
-void TopoViewer::fetchYZImage(vtkSmartPointer<vtkImageData> input,
+void TopoViewer::FetchYZImage(vtkSmartPointer<vtkImageData> input,
                               vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
@@ -234,7 +235,7 @@ void TopoViewer::fetchYZImage(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void TopoViewer::fetchXZImage(vtkSmartPointer<vtkImageData> input,
+void TopoViewer::FetchXZImage(vtkSmartPointer<vtkImageData> input,
                               vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
@@ -259,7 +260,7 @@ void TopoViewer::fetchXZImage(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void TopoViewer::fetchXYImage(vtkSmartPointer<vtkImageData> input,
+void TopoViewer::FetchXYImage(vtkSmartPointer<vtkImageData> input,
                               vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
@@ -287,7 +288,7 @@ void TopoViewer::fetchXYImage(vtkSmartPointer<vtkImageData> input,
 // ------------------------------------
 // Update axial line for topo image
 // ------------------------------------
-void TopoViewer::UpdateTopo(int current) {
+void TopoViewer::UpdateTopoView(int current) {
   if (current < m_minSliceNumber || current > m_maxSliceNumber) return;
 
   float val = (float)current / m_maxSliceNumber;
@@ -303,7 +304,7 @@ void TopoViewer::UpdateTopo(int current) {
 // ---------------------------------------
 // Display details about Image actor
 // ---------------------------------------
-void TopoViewer::displayImageActorDetails(vtkImageActor* imageActor) {
+void TopoViewer::DisplayImageActorDetails(vtkImageActor* imageActor) {
   cout << "\n\n bounds:";
   double b[6];
   imageActor->GetDisplayBounds(b);
@@ -320,7 +321,7 @@ void TopoViewer::displayImageActorDetails(vtkImageActor* imageActor) {
 // ---------------------------------------
 // Display details about renderer
 // ---------------------------------------
-void TopoViewer::displyRendererDetails(vtkRenderer* renderer) {
+void TopoViewer::DisplyRendererDetails(vtkRenderer* renderer) {
   int* pOrigin = renderer->GetOrigin();
   int* pSize = renderer->GetSize();
   cout << "\n Origin and size:" << pOrigin[0] << "  " << pOrigin[1]
@@ -330,7 +331,7 @@ void TopoViewer::displyRendererDetails(vtkRenderer* renderer) {
 // ----------------------------------------------
 // Calculate how big viewport should be for image
 // ----------------------------------------------
-void TopoViewer::calculateViewportDetails(vtkImageActor* imageActor) {
+void TopoViewer::CalculateViewportDetails(vtkImageActor* imageActor) {
   double b[6];
   imageActor->GetDisplayBounds(b);
   double xsize = b[1];
@@ -353,3 +354,11 @@ void TopoViewer::calculateViewportDetails(vtkImageActor* imageActor) {
   cout << "\nViewport size:" << rxsize1 << " " << rysize1;
   m_renderer->GetActiveCamera()->SetParallelScale(ysize);
 }
+
+void TopoViewer::SetTopoPosition(double top, double left) {
+  m_topoMarginTop = top;
+  m_topoMarginLeft = left;
+}
+
+void TopoViewer::SetBorderColor(std::string& color) { m_borderColor = color; }
+void TopoViewer::SetTopoLineColor(std::string& color) { m_lineColor = color; }

@@ -1,8 +1,8 @@
 #ifndef TOPOVIEWER_H
 #define TOPOVIEWER_H
 
-#include "vtkImageData.h"
-#include "vtkSmartPointer.h"
+#include <vtkImageData.h>
+#include <vtkSmartPointer.h>
 
 class vtkRenderer;
 class vtkActor2D;
@@ -10,48 +10,49 @@ class vtkPoints;
 class vtkImageActor;
 
 class TopoViewer {
-
  public:
-  enum class DirectionAxis {X_AXIS,Y_AXIS,Z_AXIS};
+  enum class DirectionAxis { X_AXIS, Y_AXIS, Z_AXIS };
 
   explicit TopoViewer(vtkSmartPointer<vtkImageData> data,
                       vtkSmartPointer<vtkRenderer> renderer);
   ~TopoViewer();
 
-  void setDirectionAxis(DirectionAxis viewingaxis, DirectionAxis topoaxis);
-  void setWindowLevel(double window, double level);
-  void setViewSize(double width, double height);
+  // Setup Viewer configuration 
+  void SetDirectionAxis(DirectionAxis viewingaxis, DirectionAxis topoaxis);
+  void SetWindowLevel(double window, double level);
+  // Note: Specify values in normalised viewport (0.0 to 1.0)
+  void SetViewSize(double width, double height); 
+  void SetTopoPosition(double top, double left);
+  void SetBorderColor(std::string& color);
+  void SetTopoLineColor(std::string& color);
 
   void Start();
-  void UpdateTopo(int slice);
-  
+  void UpdateTopoView(int viewingslice);
+
  protected:
   void Initialise();
-
   void ViewportBorder();
-  void fetchTopoImage(vtkSmartPointer<vtkImageData> output);
+  void FetchTopoImage(vtkSmartPointer<vtkImageData> output);
+  void FetchYZImage(vtkSmartPointer<vtkImageData> input,
+                    vtkSmartPointer<vtkImageData> output);
+  void FetchXZImage(vtkSmartPointer<vtkImageData> input,
+                    vtkSmartPointer<vtkImageData> output);
+  void FetchXYImage(vtkSmartPointer<vtkImageData> input,
+                    vtkSmartPointer<vtkImageData> output);
 
-  void fetchYZImage(vtkSmartPointer<vtkImageData> input,
-                    vtkSmartPointer<vtkImageData> output);
-  void fetchXZImage(vtkSmartPointer<vtkImageData> input,
-                    vtkSmartPointer<vtkImageData> output);
-  void fetchXYImage(vtkSmartPointer<vtkImageData> input,
-                    vtkSmartPointer<vtkImageData> output);
-
-  void drawAxialLine();
-  void displyRendererDetails(vtkRenderer* renderer);
-  void calculateViewportDetails(vtkImageActor* actor);
-  void displayImageActorDetails(vtkImageActor* imageActor);
+  void DrawTopoline();
+  void DisplyRendererDetails(vtkRenderer* renderer);
+  void CalculateViewportDetails(vtkImageActor* actor);
+  void DisplayImageActorDetails(vtkImageActor* imageActor);
 
  private:
-
   vtkSmartPointer<vtkRenderer> m_renderer;
   vtkSmartPointer<vtkImageData> m_imagedata;
 
   vtkPoints* m_linePoints = nullptr;
   vtkActor2D* m_LineActor = nullptr;
   vtkRenderer* m_parent_renderer;
-  
+
   int m_minSliceNumber;
   int m_maxSliceNumber;
 
@@ -65,6 +66,9 @@ class TopoViewer {
 
   double m_window = 255.0;
   double m_level = 127.5;
+
+  std::string m_borderColor = "gold";
+  std::string m_lineColor = "red";
 };
 
 #endif  // MAINWINDOW_H

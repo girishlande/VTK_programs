@@ -12,11 +12,6 @@
 
 #include "mainwindow.h"
 
-#define SIDES 50
-#define PLANE_RADIUS 150
-
-class MainWindow;
-
 // Define interaction style
 class MouseInteractorStyle : public vtkInteractorStyleTrackballCamera {
  public:

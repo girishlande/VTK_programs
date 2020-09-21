@@ -1,12 +1,18 @@
-#include "mainwindow.h"
-
 #include <QBoxLayout.h>
 #include <QComboBox.h>
 #include <QDir.h>
 #include <QFileDialog.h>
 #include <QGridLayout.h>
 #include <QSplitter.h>
+#include <QGroupBox.h>
+#include <qlabel.h>
+#include <qradiobutton.h>
+#include <QPushButton>
+#include <QScrollBar>
+#include <QStringList>
+#include <QTimer>
 #include <qdebug.h>
+
 #include <vtkActor.h>
 #include <vtkActor2D.h>
 #include <vtkDICOMImageReader.h>
@@ -21,27 +27,24 @@
 #include <vtkSphereSource.h>
 #include <vtkTextMapper.h>
 #include <vtkTextProperty.h>
-
-#include <QPushButton>
-#include <QScrollBar>
-#include <QStringList>
-#include <QTimer>
 #include <sstream>
 
-#include "QVTKWidget.h"
+#include <QVTKWidget.h>
+#include <vtkCamera.h>
+#include <vtkCellPicker.h>
+#include <vtkImageActor.h>
+#include <vtkImageData.h>
+#include <vtkImageMapper.h>
+#include <vtkLineSource.h>
+#include <vtkNamedColors.h>
+#include <vtkPolyDataMapper2D.h>
+#include <vtkPolyLine.h>
+#include <vtkProperty2D.h>
+
+#include "mainwindow.h"
 #include "TopoViewer.h"
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
-#include "vtkCamera.h"
-#include "vtkCellPicker.h"
-#include "vtkImageActor.h"
-#include "vtkImageData.h"
-#include "vtkImageMapper.h"
-#include "vtkLineSource.h"
-#include "vtkNamedColors.h"
-#include "vtkPolyDataMapper2D.h"
-#include "vtkPolyLine.h"
-#include "vtkProperty2D.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_vtkImageViewer(nullptr) {
@@ -82,6 +85,35 @@ MainWindow::MainWindow(QWidget* parent)
   connect(b2, SIGNAL(clicked(bool)), this, SLOT(test2()));
   tablayout->addWidget(b1);
   tablayout->addWidget(b2);
+
+  QRadioButton* rx = new QRadioButton("X Axis", this);
+  QRadioButton* ry = new QRadioButton("Y Axis", this);
+  QRadioButton* rz = new QRadioButton("Z Axis", this);
+  QGroupBox* groupBox = new QGroupBox(tr("Viewing Direction"));
+  QVBoxLayout* vbox = new QVBoxLayout;
+  vbox->addWidget(rx);
+  vbox->addWidget(ry);
+  vbox->addWidget(rz);
+  groupBox->setLayout(vbox);
+  tablayout->addWidget(groupBox);
+
+  QRadioButton* tx = new QRadioButton("X Axis", this);
+  QRadioButton* ty = new QRadioButton("Y Axis", this);
+  QRadioButton* tz = new QRadioButton("Z Axis", this);
+  QGroupBox* topogroupBox = new QGroupBox(tr("Topo Direction"));
+  QVBoxLayout* vbox1 = new QVBoxLayout;
+  vbox1->addWidget(tx);
+  vbox1->addWidget(ty);
+  vbox1->addWidget(tz);
+  topogroupBox->setLayout(vbox1);
+  tablayout->addWidget(topogroupBox);
+
+  QVBoxLayout* vbox2 = new QVBoxLayout;
+  QLabel *label = new QLabel("test", this);
+  vbox2->addStretch(1);
+  label->setLayout(vbox2);
+  tablayout->addWidget(label);
+
   QWidget* controls_widget = new QWidget;
   controls_widget->setLayout(tablayout);
 
@@ -138,8 +170,16 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
 // -----------------------
 void MainWindow::test1() {
   if (!m_topoviewer) {
-    vtkRenderer* r = m_vtkImageViewer->GetRenderer();
-    m_topoviewer = new TopoViewer(m_dicom_image, r);
+    m_topoviewer =
+        new TopoViewer(m_dicom_image, m_vtkImageViewer->GetRenderer());
+    m_topoviewer->SetDirectionAxis(TopoViewer::DirectionAxis::Z_AXIS,
+                                   TopoViewer::DirectionAxis::Y_AXIS);
+    m_topoviewer->SetViewSize(0.2, 0.2);
+    m_topoviewer->SetTopoPosition(0.05, 0.05);
+    m_topoviewer->SetBorderColor(std::string("pink"));
+    m_topoviewer->SetTopoLineColor(std::string("green"));
+    
+
     m_topoviewer->Start();
   }
 }
@@ -243,10 +283,13 @@ void MainWindow::sliderChanged(int value) {
     if (m_interaction) {
       m_interaction->updateSliceMsg(value);
     }
-    if (m_topoviewer) m_topoviewer->UpdateTopo(value);
+    if (m_topoviewer) m_topoviewer->UpdateTopoView(value);
   }
   m_vtkImageViewer->GetRenderWindow()->Render();
 }
 
 void MainWindow::updateSlider(int value) { m_slider->setValue(value); }
 
+void MainWindow::SetViewDirection(int direction) {
+
+}
