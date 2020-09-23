@@ -20,7 +20,7 @@ class vtkActor2D;
 class vtkPoints;
 class vtkImageActor;
 class myVtkInteractorStyleImage;
-class TopoViewer;
+class avTopoViewer;
 
 namespace Ui {
 class MainWindow;
@@ -74,7 +74,7 @@ class MainWindow : public QMainWindow {
   int m_maxSliceNumber;
 
   myVtkInteractorStyleImage* m_interaction = nullptr;
-  TopoViewer* m_topoviewer = nullptr;
+  avTopoViewer* m_topoviewer = nullptr;
 };
 
 #endif  // MAINWINDOW_H

@@ -50,7 +50,7 @@ add_executable(vtkQTDemo
 	modelinteractionstyle.h
 	dicominteractionstyle.h
 	avTopoViewer.h
-	avTopoViewer.cpp
+	avTopoViewer.cxx
     resource.qrc
 )
 

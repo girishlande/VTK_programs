@@ -9,13 +9,13 @@ class vtkActor2D;
 class vtkPoints;
 class vtkImageActor;
 
-class TopoViewer {
+class avTopoViewer {
  public:
   enum class DirectionAxis { X_AXIS, Y_AXIS, Z_AXIS };
 
-  explicit TopoViewer(vtkSmartPointer<vtkImageData> data,
+  explicit avTopoViewer(vtkSmartPointer<vtkImageData> data,
                       vtkSmartPointer<vtkRenderer> renderer);
-  ~TopoViewer();
+  ~avTopoViewer();
 
   // Setup Viewer configuration 
   void SetDirectionAxis(DirectionAxis viewingaxis, DirectionAxis topoaxis);
@@ -25,6 +25,7 @@ class TopoViewer {
   void SetTopoPosition(double top, double left);
   void SetBorderColor(std::string& color);
   void SetTopoLineColor(std::string& color);
+  void SetTopoImage(vtkSmartPointer<vtkImageData> topoimage);
 
   void Start();
   void UpdateTopoView(int viewingslice);
@@ -44,22 +45,25 @@ class TopoViewer {
   void DisplyRendererDetails(vtkRenderer* renderer);
   void CalculateViewportDetails(vtkImageActor* actor);
   void DisplayImageActorDetails(vtkImageActor* imageActor);
+  void CalculateViewportSize();
 
  private:
+
   vtkSmartPointer<vtkRenderer> m_renderer;
   vtkSmartPointer<vtkImageData> m_imagedata;
+  vtkSmartPointer<vtkImageData> m_topoImage;
+  vtkSmartPointer<vtkRenderer> m_parent_renderer;
 
   vtkPoints* m_linePoints = nullptr;
   vtkActor2D* m_LineActor = nullptr;
-  vtkRenderer* m_parent_renderer;
-
+  
   int m_minSliceNumber;
   int m_maxSliceNumber;
 
-  double m_topoViewWidth = 0.3;
-  double m_topoViewHeight = 0.2;
-  double m_topoMarginTop = 0.05;
-  double m_topoMarginLeft = 0.03;
+  double m_width = 0.4;
+  double m_height = 0.4;
+  double m_topMargin = 0.1;
+  double m_leftMargin = 0.1;
 
   DirectionAxis m_viewingaxis = DirectionAxis::Z_AXIS;
   DirectionAxis m_topoaxis = DirectionAxis::X_AXIS;

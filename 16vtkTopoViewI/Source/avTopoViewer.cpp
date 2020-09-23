@@ -1,6 +1,5 @@
-#include "TopoViewer.h"
+#include "avTopoViewer.h"
 
-#include <vtkActor.h>
 #include <vtkActor2D.h>
 #include <vtkCamera.h>
 #include <vtkImageActor.h>
@@ -8,7 +7,6 @@
 #include <vtkImageMapper.h>
 #include <vtkLineSource.h>
 #include <vtkNamedColors.h>
-#include <vtkPolyDataMapper.h>
 #include <vtkPolyDataMapper2D.h>
 #include <vtkPolyLine.h>
 #include <vtkProperty.h>
@@ -19,15 +17,15 @@
 
 #include <sstream>
 
-TopoViewer::TopoViewer(vtkSmartPointer<vtkImageData> imagedata,
-                       vtkSmartPointer<vtkRenderer> renderer)
+avTopoViewer::avTopoViewer(vtkSmartPointer<vtkImageData> imagedata,
+                           vtkSmartPointer<vtkRenderer> renderer)
     : m_imagedata(imagedata), m_parent_renderer(renderer) {
   Initialise();
 }
 
-TopoViewer::~TopoViewer() {}
+avTopoViewer::~avTopoViewer() {}
 
-void TopoViewer::Initialise() {
+void avTopoViewer::Initialise() {
   if (m_imagedata) {
     int* dims = m_imagedata->GetDimensions();
     m_minSliceNumber = 0;
@@ -46,8 +44,8 @@ void TopoViewer::Initialise() {
   }
 }
 
-void TopoViewer::SetDirectionAxis(DirectionAxis viewingaxis,
-                                  DirectionAxis topoaxis) {
+void avTopoViewer::SetDirectionAxis(DirectionAxis viewingaxis,
+                                    DirectionAxis topoaxis) {
   assert(viewingaxis != topoaxis);
   if (viewingaxis != topoaxis) {
     m_topoaxis = topoaxis;
@@ -56,43 +54,40 @@ void TopoViewer::SetDirectionAxis(DirectionAxis viewingaxis,
   }
 }
 
-void TopoViewer::SetWindowLevel(double window, double level) {
+void avTopoViewer::SetWindowLevel(double window, double level) {
   m_window = window;
   m_level = level;
 }
 
-void TopoViewer::SetViewSize(double width, double height) {
-  if (width > 0.0 && width < 1.0) m_topoViewWidth = width;
-  if (height > 0.0 && height < 1.0) m_topoViewHeight = height;
+void avTopoViewer::SetViewSize(double width, double height) {
+  if (width > 0.0 && width < 1.0) m_width = width;
+  if (height > 0.0 && height < 1.0) m_height = height;
 }
 
 // -----------------------------
 // Start displaying topo view
 // -----------------------------
-void TopoViewer::Start() {
+void avTopoViewer::Start() {
   if (!m_imagedata) return;
 
-  vtkNew<vtkImageData> output;
-  FetchTopoImage(output);
+  if (!m_topoImage) {
+    m_topoImage = vtkSmartPointer<vtkImageData>::New();
+    FetchTopoImage(m_topoImage);
+  }
 
   vtkNew<vtkImageMapper> imageMapper;
-  imageMapper->SetInputData(output);
+  imageMapper->SetInputData(m_topoImage);
   imageMapper->SetColorWindow(m_window);
   imageMapper->SetColorLevel(m_level);
   imageMapper->SetRenderToRectangle(true);
 
   vtkNew<vtkActor2D> imageActor;
   imageActor->SetMapper(imageMapper);
-
-  double bottomLeftX = m_topoMarginLeft;
-  double bottomLeftY = 1.0 - (m_topoViewHeight + m_topoMarginTop);
-  double topRightX = m_topoMarginLeft + m_topoViewWidth;
-  double topRightY = 1.0f - m_topoMarginTop;
   vtkCoordinate* p2 = imageActor->GetPosition2Coordinate();
   p2->SetValue(1.0, 1.0);
 
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
-  m_renderer->SetViewport(bottomLeftX, bottomLeftY, topRightX, topRightY);
+  CalculateViewportSize();
   m_renderer->AddActor2D(imageActor);
   m_parent_renderer->GetRenderWindow()->AddRenderer(m_renderer);
 
@@ -105,7 +100,7 @@ void TopoViewer::Start() {
 // -------------------------
 // Create viewport border
 // -------------------------
-void TopoViewer::ViewportBorder() {
+void avTopoViewer::ViewportBorder() {
   vtkNew<vtkPoints> points;
   points->SetNumberOfPoints(4);
   points->InsertPoint(0, 1, 1, 0);
@@ -144,9 +139,9 @@ void TopoViewer::ViewportBorder() {
 }
 
 // ---------------------------------------------------------------------
-// Draw axial line indicating slide position in side view of the image
+// Draw topo line indicating slide position in side view of the image
 // ---------------------------------------------------------------------
-void TopoViewer::DrawTopoline() {
+void avTopoViewer::DrawTopoline() {
   vtkNew<vtkPoints> points;
   points->SetNumberOfPoints(2);
   points->InsertPoint(0, 0, 0, 0);
@@ -185,21 +180,21 @@ void TopoViewer::DrawTopoline() {
 // --------------------
 // Fetch topo Image
 // --------------------
-void TopoViewer::FetchTopoImage(vtkSmartPointer<vtkImageData> output) {
+void avTopoViewer::FetchTopoImage(vtkSmartPointer<vtkImageData> output) {
   switch (m_viewingaxis) {
-    case TopoViewer::DirectionAxis::X_AXIS:
+    case avTopoViewer::DirectionAxis::X_AXIS:
       if (m_topoaxis == DirectionAxis::Y_AXIS)
         FetchXZImage(m_imagedata, output);
       else
         FetchXYImage(m_imagedata, output);
       break;
-    case TopoViewer::DirectionAxis::Y_AXIS:
+    case avTopoViewer::DirectionAxis::Y_AXIS:
       if (m_topoaxis == DirectionAxis::Z_AXIS)
         FetchXYImage(m_imagedata, output);
       else
         FetchYZImage(m_imagedata, output);
       break;
-    case TopoViewer::DirectionAxis::Z_AXIS:
+    case avTopoViewer::DirectionAxis::Z_AXIS:
       if (m_topoaxis == DirectionAxis::X_AXIS)
         FetchYZImage(m_imagedata, output);
       else
@@ -210,8 +205,8 @@ void TopoViewer::FetchTopoImage(vtkSmartPointer<vtkImageData> output) {
   }
 }
 
-void TopoViewer::FetchYZImage(vtkSmartPointer<vtkImageData> input,
-                              vtkSmartPointer<vtkImageData> output) {
+void avTopoViewer::FetchYZImage(vtkSmartPointer<vtkImageData> input,
+                                vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
   int xdim = dims[0];
@@ -235,8 +230,8 @@ void TopoViewer::FetchYZImage(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void TopoViewer::FetchXZImage(vtkSmartPointer<vtkImageData> input,
-                              vtkSmartPointer<vtkImageData> output) {
+void avTopoViewer::FetchXZImage(vtkSmartPointer<vtkImageData> input,
+                                vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
   int xdim = dims[0];
@@ -260,8 +255,8 @@ void TopoViewer::FetchXZImage(vtkSmartPointer<vtkImageData> input,
   }
 }
 
-void TopoViewer::FetchXYImage(vtkSmartPointer<vtkImageData> input,
-                              vtkSmartPointer<vtkImageData> output) {
+void avTopoViewer::FetchXYImage(vtkSmartPointer<vtkImageData> input,
+                                vtkSmartPointer<vtkImageData> output) {
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
   int xdim = dims[0];
@@ -288,7 +283,7 @@ void TopoViewer::FetchXYImage(vtkSmartPointer<vtkImageData> input,
 // ------------------------------------
 // Update axial line for topo image
 // ------------------------------------
-void TopoViewer::UpdateTopoView(int current) {
+void avTopoViewer::UpdateTopoView(int current) {
   if (current < m_minSliceNumber || current > m_maxSliceNumber) return;
 
   float val = (float)current / m_maxSliceNumber;
@@ -304,7 +299,7 @@ void TopoViewer::UpdateTopoView(int current) {
 // ---------------------------------------
 // Display details about Image actor
 // ---------------------------------------
-void TopoViewer::DisplayImageActorDetails(vtkImageActor* imageActor) {
+void avTopoViewer::DisplayImageActorDetails(vtkImageActor* imageActor) {
   cout << "\n\n bounds:";
   double b[6];
   imageActor->GetDisplayBounds(b);
@@ -321,7 +316,7 @@ void TopoViewer::DisplayImageActorDetails(vtkImageActor* imageActor) {
 // ---------------------------------------
 // Display details about renderer
 // ---------------------------------------
-void TopoViewer::DisplyRendererDetails(vtkRenderer* renderer) {
+void avTopoViewer::DisplyRendererDetails(vtkRenderer* renderer) {
   int* pOrigin = renderer->GetOrigin();
   int* pSize = renderer->GetSize();
   cout << "\n Origin and size:" << pOrigin[0] << "  " << pOrigin[1]
@@ -331,7 +326,7 @@ void TopoViewer::DisplyRendererDetails(vtkRenderer* renderer) {
 // ----------------------------------------------
 // Calculate how big viewport should be for image
 // ----------------------------------------------
-void TopoViewer::CalculateViewportDetails(vtkImageActor* imageActor) {
+void avTopoViewer::CalculateViewportDetails(vtkImageActor* imageActor) {
   double b[6];
   imageActor->GetDisplayBounds(b);
   double xsize = b[1];
@@ -355,10 +350,39 @@ void TopoViewer::CalculateViewportDetails(vtkImageActor* imageActor) {
   m_renderer->GetActiveCamera()->SetParallelScale(ysize);
 }
 
-void TopoViewer::SetTopoPosition(double top, double left) {
-  m_topoMarginTop = top;
-  m_topoMarginLeft = left;
+void avTopoViewer::SetTopoPosition(double top, double left) {
+  m_topMargin = top;
+  m_leftMargin = left;
 }
 
-void TopoViewer::SetBorderColor(std::string& color) { m_borderColor = color; }
-void TopoViewer::SetTopoLineColor(std::string& color) { m_lineColor = color; }
+void avTopoViewer::SetBorderColor(std::string& color) { m_borderColor = color; }
+void avTopoViewer::SetTopoLineColor(std::string& color) { m_lineColor = color; }
+
+void avTopoViewer::SetTopoImage(vtkSmartPointer<vtkImageData> topoimage) {
+  m_topoImage = topoimage;
+}
+
+void avTopoViewer::CalculateViewportSize() {
+  assert(m_renderer);
+  assert(m_parent_renderer);
+
+  double v[4];  // minx, miny, maxx, maxy;
+  m_parent_renderer->GetViewport(v);
+  std::cout << std::endl << "Viewport \n";
+  for (int i = 0; i < 4; i++) cout << std::endl << v[i];
+
+  double vw = v[2] - v[0];
+  assert(vw > 0);
+  double vh = v[3] - v[1];
+  assert(vh > 0);
+  m_width = vw * m_width;
+  m_height = vh * m_height;
+  m_leftMargin = vw * m_leftMargin;
+  m_topMargin = vh * m_topMargin;
+
+  double tminx = v[0] + m_leftMargin;
+  double tminy = v[1] + (vh - (m_height + m_topMargin));
+  double tmaxx = tminx + m_width;
+  double tmaxy = tminy + m_height;
+  m_renderer->SetViewport(tminx, tminy, tmaxx, tmaxy);
+}

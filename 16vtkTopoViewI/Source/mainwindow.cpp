@@ -42,7 +42,7 @@
 #include <vtkProperty2D.h>
 
 #include "mainwindow.h"
-#include "TopoViewer.h"
+#include "avTopoViewer.h"
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
 
@@ -165,19 +165,49 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QTimer::singleShot(100, this, SLOT(ProcessInput()));
 }
 
+void FetchXZImage(vtkSmartPointer<vtkImageData> input,
+                                vtkSmartPointer<vtkImageData> output) {
+  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
+  int* dims = input->GetDimensions();
+  int xdim = dims[0];
+  int ydim = dims[1];
+  int zdim = dims[2];
+
+  // Specify the size of the image data
+  output->SetDimensions(xdim, zdim, 1);
+  output->AllocateScalars(VTK_SHORT, 1);
+  output->SetSpacing(input->GetSpacing());
+  output->SetOrigin(input->GetOrigin());
+
+  // Fill every entry of the image data with "2.0"
+  for (int z = 0; z < zdim; z++) {
+    for (int x = 0; x < xdim; x++) {
+      short* pixel = static_cast<short*>(output->GetScalarPointer(x, z, 0));
+      short* sourcepixel =
+          static_cast<short*>(input->GetScalarPointer(x, ydim / 2, z));
+      pixel[0] = sourcepixel[0];
+    }
+  }
+}
+
 // -----------------------
 // Test functions
 // -----------------------
 void MainWindow::test1() {
   if (!m_topoviewer) {
     m_topoviewer =
-        new TopoViewer(m_dicom_image, m_vtkImageViewer->GetRenderer());
-    m_topoviewer->SetDirectionAxis(TopoViewer::DirectionAxis::Z_AXIS,
-                                   TopoViewer::DirectionAxis::Y_AXIS);
-    m_topoviewer->SetViewSize(0.2, 0.2);
-    m_topoviewer->SetTopoPosition(0.05, 0.05);
-    m_topoviewer->SetBorderColor(std::string("pink"));
-    m_topoviewer->SetTopoLineColor(std::string("green"));
+        new avTopoViewer(m_dicom_image, m_vtkImageViewer->GetRenderer());
+    m_topoviewer->SetDirectionAxis(avTopoViewer::DirectionAxis::Z_AXIS,
+                                   avTopoViewer::DirectionAxis::Y_AXIS);
+
+    vtkNew<vtkImageData> topoImage;
+    FetchXZImage(m_dicom_image, topoImage);
+    m_topoviewer->SetTopoImage(topoImage);
+
+    //m_topoviewer->SetViewSize(0.2, 0.2);
+    //m_topoviewer->SetTopoPosition(0.05, 0.05);
+    //m_topoviewer->SetBorderColor(std::string("pink"));
+    //m_topoviewer->SetTopoLineColor(std::string("green"));
     
 
     m_topoviewer->Start();
@@ -229,6 +259,8 @@ void MainWindow::UpdateViewForDICOM() {
   imageViewer->SetRenderWindow(m_vtkView->GetRenderWindow());
   m_vtkView->GetRenderWindow()->SetInteractor(renderWindowInteractor);
 
+  imageViewer->GetRenderer()->SetViewport(0.5, 0, 1, 0.5);
+  imageViewer->GetRenderer()->SetBackground(1, 1, 0);
   // initialize rendering and interaction
   imageViewer->Render();
   imageViewer->GetRenderer()->ResetCamera();
