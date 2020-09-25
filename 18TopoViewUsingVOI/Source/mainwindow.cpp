@@ -46,6 +46,25 @@
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
 
+void PrintImageDetails(vtkImageData* image) {
+  if (!image) return;
+
+  int* D = image->GetDimensions();
+  std::cout << "\nDimensions:";
+  for (int i = 0; i < 3; i++) std::cout << D[i] << " ";
+
+  int *E = image->GetExtent();
+  std::cout << "\n Extent:";
+  for (int i = 0; i < 6; i++) std::cout << E[i] << " ";
+
+  double *S = image->GetSpacing();
+  std::cout << "\n Spacing:";
+  for (int i = 0; i < 3; i++) std::cout << S[i] << " ";
+
+
+}
+
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_vtkImageViewer(nullptr) {
   // Setup window and resize it
@@ -204,7 +223,7 @@ void MainWindow::test1() {
     FetchXZImage(m_dicom_image, topoImage);
     m_topoviewer->SetTopoImage(topoImage);
 
-    //m_topoviewer->SetViewSize(0.2, 0.2);
+    m_topoviewer->SetViewSize(0.2, 0.2);
     //m_topoviewer->SetTopoPosition(0.05, 0.05);
     //m_topoviewer->SetBorderColor(std::string("pink"));
     //m_topoviewer->SetTopoLineColor(std::string("green"));
@@ -259,7 +278,6 @@ void MainWindow::UpdateViewForDICOM() {
   imageViewer->SetRenderWindow(m_vtkView->GetRenderWindow());
   m_vtkView->GetRenderWindow()->SetInteractor(renderWindowInteractor);
 
-  imageViewer->GetRenderer()->SetViewport(0.5, 0, 1, 0.5);
   imageViewer->GetRenderer()->SetBackground(1, 1, 0);
   // initialize rendering and interaction
   imageViewer->Render();
@@ -304,6 +322,7 @@ void MainWindow::ReadInputDICOM() {
   m_dicom_reader->Update();
 
   m_dicom_image = m_dicom_reader->GetOutput();
+  PrintImageDetails(m_dicom_image);
 }
 
 // ----------------------------------
