@@ -14,6 +14,7 @@ class vtkImageViewer2;
 class QScrollBar;
 class QGridLayout;
 class vtkRenderer;
+class vtkProperty2D;
 
 namespace Ui {
 class MainWindow;
@@ -29,9 +30,11 @@ class MainWindow : public QMainWindow {
   explicit MainWindow(QWidget* parent = 0);
   ~MainWindow();
 
-  void InitialiseView();
-
   void updateSlider(int value);
+  void ProcessMousePoint(int mx, int my);
+  void LeftButtonDown(int mx, int my);
+  void LeftButtonUp(int mx, int my);
+
 
  protected:
   void addDicomImageInViewport();
@@ -44,8 +47,10 @@ class MainWindow : public QMainWindow {
   void fetchXZImage(vtkSmartPointer<vtkImageData>& input,
                     vtkSmartPointer<vtkImageData>& output);
 
-  void AddLineActor(vtkRenderer* renderer);
-  void AddSphereActor(vtkRenderer* renderer);
+  void InitialiseDICOM();
+  bool IsPointWithinTopo(int x, int y);
+  void SelectTopo();
+  void DeselectTopo();
 
  private slots:
 
@@ -55,13 +60,11 @@ class MainWindow : public QMainWindow {
   void UpdateViewForDICOM();
   void test1();
   void test2();
-  void MultipleViewports();
-  void createMultipleViewports();
-  void ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
-                                  double* color, bool last);
+  void ViewportBorder(vtkSmartPointer<vtkRenderer> renderer,
+                                  double* color);
   void printImageDetails(vtkSmartPointer<vtkImageData>& image);
-  void createPlaneWidget();
-  void calculateKeyPoints();
+  void NormalisedToDeviceCoordinates(double nx, double ny, int& dx, int& dy);
+  void DeviceToNormalised(int dx, int dy, double& nx, double& ny);
 
  private:
   Ui::MainWindow* ui;
@@ -74,26 +77,19 @@ class MainWindow : public QMainWindow {
 
   QString m_dicom_dir_path = "";
 
-   vtkSmartPointer<vtkImagePlaneWidget> m_plane;
+  int m_width;
+  int m_height;
 
-  // Define center point of planer
-  double m_plane_center[3];
-
-  // Define Normal vectors of planes
-  double m_normal_Z[3];
-  double m_normal_X[3];
-  double m_normal_Y[3];
-
-  // Points away
-  double m_XX_1[3];
-  double m_YY_1[3];
-  double m_ZZ_1[3];
-  double m_XX_2[3];
-  double m_YY_2[3];
-  double m_ZZ_2[3];
-  double m_XY_origin[3];
-  double m_YZ_origin[3];
-  double m_XZ_origin[3];
+  vtkRenderer* m_topoRenderer = nullptr;
+  double m_topoX = 0.1;
+  double m_topoY = 0.7;
+  double m_topoWidth = 0.2;
+  double m_topoHeight = 0.2;
+  vtkProperty2D* m_topoBorderProperty = nullptr;
+  bool m_topoHighlighted = false;
+  bool m_topoDragging = false;
+  int m_dragStartX;
+  int m_dragStartY;
 };
 
 #endif  // MAINWINDOW_H

@@ -47,6 +47,8 @@ add_executable(vtkQTDemo
     mainwindow.ui
     mainwindow.cpp
     main.cpp
+	dicominteractionstyle.h
+	mainwindow.h
     resource.qrc
 )
 

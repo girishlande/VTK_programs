@@ -15,6 +15,9 @@
 #include <vtkTextMapper.h>
 #include <vtkTextProperty.h>
 // needed to easily convert int to std::string
+#include <vtkRendererCollection.h>
+#include <vtkWorldPointPicker.h>
+
 #include <sstream>
 
 // helper class to format slice status message
@@ -37,6 +40,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     m_window = w;
   }
 
+  void SetClipRenderer(vtkRenderer* r) { m_clipRenderer = r; }
   MainWindow* getWindow() { return m_window; }
 
  protected:
@@ -46,6 +50,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
   int _MinSlice;
   int _MaxSlice;
   MainWindow* m_window;
+  vtkRenderer* m_clipRenderer = nullptr;
 
  public:
   void SetImageViewer(vtkImageViewer2* imageViewer) {
@@ -102,9 +107,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     vtkInteractorStyleImage::OnKeyDown();
   }
 
-  virtual void OnMouseWheelForward() {
-    MoveSliceForward();
-  }
+  virtual void OnMouseWheelForward() { MoveSliceForward(); }
 
   virtual void OnMouseWheelBackward() {
     if (_Slice > _MinSlice) {
@@ -113,6 +116,38 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     // don't forward events, otherwise the image will be zoomed
     // in case another interactorstyle is used (e.g. trackballstyle, ...)
     // vtkInteractorStyleImage::OnMouseWheelBackward();
+  }
+
+  virtual void OnLeftButtonDown() {
+    if (this->Interactor->GetControlKey()) {
+      int dx = this->Interactor->GetEventPosition()[0];
+      int dy = this->Interactor->GetEventPosition()[1];
+
+      if (m_window)
+        m_window->LeftButtonDown(dx,dy);
+    }
+
+    vtkInteractorStyleImage::OnLeftButtonDown();
+  }
+
+  virtual void OnLeftButtonUp() {
+    if (this->Interactor->GetControlKey()) {
+      int dx = this->Interactor->GetEventPosition()[0];
+      int dy = this->Interactor->GetEventPosition()[1];
+
+      if (m_window) m_window->LeftButtonUp(dx, dy);
+    }
+
+    vtkInteractorStyleImage::OnLeftButtonDown();
+  }
+
+  virtual void OnMouseMove() {
+    if (this->Interactor->GetControlKey()) {
+      int dx = this->Interactor->GetEventPosition()[0];
+      int dy = this->Interactor->GetEventPosition()[1];
+
+      if (m_window) m_window->ProcessMousePoint(dx, dy);
+    }
   }
 };
 
