@@ -1,8 +1,5 @@
-This project uses external Topo View Image. 
-
-
-This project shows how to use vtk along with QT widgets to create visualization application. 
-This has only one VTK view and can be used to quickly test some VTK api 
+This project shows how to use vtk for reading DICOM files and display them in View so that they can be seen using 
+plane widgets and you can navigate on them 
 
 PRECONDITION
 ===================
