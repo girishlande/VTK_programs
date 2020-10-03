@@ -13,6 +13,7 @@
 #include <vtkActor2D.h>
 #include <vtkConeSource.h>
 #include <vtkDICOMImageReader.h>
+#include <vtkImageActor.h>
 #include <vtkImageViewer2.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkMath.h>
@@ -27,11 +28,12 @@
 #include <vtkSphereSource.h>
 #include <vtkTextMapper.h>
 #include <vtkTextProperty.h>
-#include <vtkImageActor.h>
+
 #include <QPushButton>
 #include <QStringList>
 #include <QTimer>
 #include <sstream>
+
 #include "QVTKWidget.h"
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
@@ -43,6 +45,25 @@
 #include "vtkPolyDataMapper2D.h"
 #include "vtkPolyLine.h"
 #include "vtkProperty2D.h"
+#include <vtkImageResize.h>
+
+class vtkBoxCallback : public vtkCommand {
+ public:
+  static vtkBoxCallback* New() { return new vtkBoxCallback; }
+
+  virtual void Execute(vtkObject* caller, unsigned long, void*) {
+    int dx = m_window->getInteractor()->GetEventPosition()[0];
+    int dy = m_window->getInteractor()->GetEventPosition()[1];
+    std::cout << "\nInteraction " << dx << " " << dy << std::flush;
+    
+  }
+  vtkBoxCallback() {}
+
+  void SetWindow(MainWindow* window) { m_window = window;
+  }
+
+  MainWindow* m_window;
+};
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_vtkImageViewer(nullptr) {
@@ -141,7 +162,6 @@ void MainWindow::InitialiseDICOM() {
 #include <vtkWidgetCallbackMapper.h>
 #include <vtkWidgetEvent.h>
 
-
 class vtkCustomBorderWidget : public vtkBorderWidget {
  public:
   static vtkCustomBorderWidget* New();
@@ -184,6 +204,12 @@ void vtkCustomBorderWidget::EndSelectAction(vtkAbstractWidget* w) {
 }
 
 void MainWindow::DrawImage() {
+
+  vtkSmartPointer<vtkBoxCallback> boxCallback =
+      vtkSmartPointer<vtkBoxCallback>::New();
+  boxCallback->SetWindow(this);
+
+
   std::string filepath = m_dicom_dir_path.toStdString() + "/" + "1.dcm";
   vtkNew(vtkDICOMImageReader, reader);
   reader->SetFileName(filepath.c_str());
@@ -191,26 +217,57 @@ void MainWindow::DrawImage() {
 
   printImageDetails(reader->GetOutput());
 
-  vtkNew<vtkImageActor> imageActor;
-  m_imageactor = imageActor.Get();
-  imageActor->SetInputData(reader->GetOutput());
+   vtkSmartPointer<vtkImageResize> resize =
+      vtkSmartPointer<vtkImageResize>::New();
+  resize->SetInputData(reader->GetOutput());
+  resize->SetOutputDimensions(100, 100, 1);
+  resize->Update();
+
+  vtkNew<vtkImageMapper> imageMapper;
+  imageMapper->SetInputData(resize->GetOutput());
+  imageMapper->SetColorWindow(255);
+  imageMapper->SetColorLevel(127);
+  imageMapper->SetRenderToRectangle(true);
+
+  vtkNew<vtkActor2D> imageActor;
+  imageActor->SetMapper(imageMapper);
+
+  vtkCoordinate* p1 = imageActor->GetPositionCoordinate();
+  p1->SetValue(0, 0);
+  vtkCoordinate* p2 = imageActor->GetPosition2Coordinate();
+  p2->SetValue(m_topoWidth, m_topoHeight);
+  m_image2DActor = imageActor.Get();
 
   m_renderer = vtkSmartPointer<vtkRenderer>::New();
   m_vtkView->GetRenderWindow()->AddRenderer(m_renderer);
   m_renderer->AddActor2D(imageActor);
   m_renderer->SetBackground(1, 1, 0);
   m_renderer->ResetCamera();
+
   m_vtkView->GetRenderWindow()->Render();
 
   vtkNew(vtkRenderWindowInteractor, renderWindowInteractor);
+  m_interactor = renderWindowInteractor.Get();
   vtkNew(myVtkInteractorStyleImage, myInteractorStyle);
   myInteractorStyle->setWindow(this);
   renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
   m_vtkView->GetRenderWindow()->SetInteractor(renderWindowInteractor);
+
+  renderWindowInteractor->AddObserver(vtkCommand::MouseMoveEvent,
+                                      boxCallback);
+
+  int* size = m_vtkView->GetRenderWindow()->GetSize();
+  m_width = size[0];
+  m_height = size[1];
+  cout << std::endl << "Window : " << m_width << " " << m_height;
+
+  vtkNew(vtkNamedColors, colors);
+  DrawActorBorder(colors->GetColor3d("Red").GetData());
+
+  m_vtkView->GetRenderWindow()->Render();
+
   renderWindowInteractor->Start();
 }
-
-
 
 void MainWindow::UpdateViewForDICOM() {
   vtkNew(vtkDICOMImageReader, reader);
@@ -301,7 +358,7 @@ void MainWindow::test1() {
   vtkNew<vtkActor2D> imageActor;
   imageActor->SetMapper(imageMapper);
   vtkCoordinate* p2 = imageActor->GetPosition2Coordinate();
-  p2->SetValue(1.0, 1.0);
+  p2->SetValue(2.0, 2.0);
 
   vtkNew(vtkNamedColors, colors);
   vtkNew(vtkRenderer, renderer);
@@ -503,6 +560,17 @@ void MainWindow::printImageDetails(vtkImageData* image) {
   cout << "\nX:" << xdim << " Ydim:" << ydim << " Zdim:" << zdim;
   double* origin = image->GetOrigin();
   cout << "\nOrigin:" << origin[0] << "," << origin[0] << "," << origin[0];
+
+  double* spacing = image->GetSpacing();
+  cout << "\n SPacing:";
+  for (int i = 0; i < 3; i++) {
+    cout << spacing[i] << " ";
+  }
+
+  cout << "\n Image Length:";
+  for (int i = 0; i < 3; i++) {
+    cout << spacing[i] * dims[i] << "  ";
+  }
 }
 
 void MainWindow::test2() {}
@@ -519,6 +587,13 @@ void MainWindow::DeviceToNormalised(int dx, int dy, double& nx, double& ny) {
 }
 
 void MainWindow::ProcessMousePoint(int mx, int my) {
+  if (m_image2DActor) {
+    // m_image2DActor->SetPosition(mx, my);
+    m_image2DActor->SetDisplayPosition(mx, my);
+    m_topoActor->SetDisplayPosition(mx, my);
+    m_renderer->GetRenderWindow()->Render();
+  }
+
   if (m_topoDragging) {
     int moveX = mx - m_dragStartX;
     int moveY = my - m_dragStartY;
@@ -600,3 +675,59 @@ void MainWindow::DeselectTopo() {
   m_topoBorderProperty->SetLineWidth(4.0);  // Line Width
   m_vtkView->GetRenderWindow()->Render();
 }
+
+
+void MainWindow::DrawActorBorder(double* color) {
+
+  vtkNew(vtkPoints, points);
+  points->SetNumberOfPoints(4);
+  points->InsertPoint(0, 1*m_topoWidth, 1*m_topoHeight, 0);
+  points->InsertPoint(1, 0, 1*m_topoHeight, 0);
+  points->InsertPoint(2, 0, 0, 0);
+  points->InsertPoint(3, 1*m_topoWidth, 0, 0);
+
+  // points start at upper right and proceed anti-clockwise
+  /*vtkNew(vtkPoints, points);
+  points->SetNumberOfPoints(4);
+  points->InsertPoint(0, 1.0 * m_topoWidth, 1.0*m_topoHeight, 0);
+  points->InsertPoint(1, 0, 1.0 * m_topoHeight, 0);
+  points->InsertPoint(2, 0, 0, 0);
+  points->InsertPoint(3, 1.0 * m_topoWidth, 0, 0);*/
+
+  // create cells, and lines
+  vtkNew(vtkCellArray, cells);
+  cells->Initialize();
+  vtkNew(vtkPolyLine, lines);
+  lines->GetPointIds()->SetNumberOfIds(5);
+  for (unsigned int i = 0; i < 4; ++i) {
+    lines->GetPointIds()->SetId(i, i);
+  }
+  lines->GetPointIds()->SetId(4, 0);
+  cells->InsertNextCell(lines);
+
+  // now make tge polydata and display it
+  vtkNew(vtkPolyData, poly);
+  poly->Initialize();
+  poly->SetPoints(points);
+  poly->SetLines(cells);
+
+  // use normalized viewport coordinates since
+  // they are independent of window size
+  vtkNew(vtkCoordinate, coordinate);
+  coordinate->SetCoordinateSystemToNormalizedViewport();
+
+  vtkNew(vtkPolyDataMapper2D, mapper);
+  mapper->SetInputData(poly);
+  mapper->SetTransformCoordinate(coordinate);
+
+  vtkNew(vtkActor2D, actor);
+  actor->SetMapper(mapper);
+  actor->GetProperty()->SetColor(color);
+  actor->GetProperty()->SetLineWidth(4.0);  // Line Width
+  m_topoBorderProperty = actor->GetProperty();
+  m_topoActor = actor.Get();
+
+  m_renderer->AddViewProp(actor);
+}
+
+vtkRenderWindowInteractor* MainWindow::getInteractor() { return m_interactor; }

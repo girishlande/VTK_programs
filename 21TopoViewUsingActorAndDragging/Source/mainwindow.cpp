@@ -11,8 +11,13 @@
 #include <qscrollbar.h>
 #include <vtkActor.h>
 #include <vtkActor2D.h>
+#include <vtkBorderRepresentation.h>
+#include <vtkBorderWidget.h>
+#include <vtkCommand.h>
 #include <vtkConeSource.h>
 #include <vtkDICOMImageReader.h>
+#include <vtkImageActor.h>
+#include <vtkImageResize.h>
 #include <vtkImageViewer2.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkMath.h>
@@ -27,6 +32,8 @@
 #include <vtkSphereSource.h>
 #include <vtkTextMapper.h>
 #include <vtkTextProperty.h>
+#include <vtkWidgetCallbackMapper.h>
+#include <vtkWidgetEvent.h>
 
 #include <QPushButton>
 #include <QStringList>
@@ -129,14 +136,65 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
 }
 
 void MainWindow::InitialiseDICOM() {
-  m_dicom_dir_path = "../../data/series201";
-  UpdateViewForDICOM();
+  m_dicom_dir_path = "../../data/SingleImage";
+  ReadTopoImage();
+}
+
+class vtkCustomBorderWidget : public vtkBorderWidget {
+ public:
+  static vtkCustomBorderWidget* New();
+  vtkTypeMacro(vtkCustomBorderWidget, vtkBorderWidget);
+
+  static void EndSelectAction(vtkAbstractWidget* w);
+
+  vtkCustomBorderWidget();
+};
+
+vtkStandardNewMacro(vtkCustomBorderWidget);
+
+vtkCustomBorderWidget::vtkCustomBorderWidget() {
+  this->CallbackMapper->SetCallbackMethod(
+      vtkCommand::MiddleButtonReleaseEvent, vtkWidgetEvent::EndSelect, this,
+      vtkCustomBorderWidget::EndSelectAction);
+}
+
+void vtkCustomBorderWidget::EndSelectAction(vtkAbstractWidget* w) {
+  vtkBorderWidget* borderWidget = dynamic_cast<vtkBorderWidget*>(w);
+
+  // Get the actual box coordinates/planes
+  // vtkSmartPointer<vtkPolyData> polydata =
+  //  vtkSmartPointer<vtkPolyData>::New();
+
+  // Get the bottom left corner
+  auto lowerLeft =
+      static_cast<vtkBorderRepresentation*>(borderWidget->GetRepresentation())
+          ->GetPosition();
+  std::cout << "Lower left: " << lowerLeft[0] << " " << lowerLeft[1]
+            << std::endl;
+
+  auto upperRight =
+      static_cast<vtkBorderRepresentation*>(borderWidget->GetRepresentation())
+          ->GetPosition2();
+  std::cout << "Upper right: " << upperRight[0] << " " << upperRight[1]
+            << std::endl;
+
+  vtkBorderWidget::EndSelectAction(w);
+}
+
+void MainWindow::ReadTopoImage() {
+  std::string filepath = m_dicom_dir_path.toStdString() + "/" + "1.dcm";
+  vtkNew(vtkDICOMImageReader, reader);
+  reader->SetFileName(filepath.c_str());
+  reader->Update();
+
+  m_topoImage = reader->GetOutput();
 }
 
 void MainWindow::UpdateViewForDICOM() {
   vtkNew(vtkDICOMImageReader, reader);
   reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
   reader->Update();
+  m_imageVolume = reader->GetOutput();
 
   vtkNew(vtkImageViewer2, imageViewer);
   imageViewer->SetInputConnection(reader->GetOutputPort());
@@ -177,10 +235,6 @@ void MainWindow::UpdateViewForDICOM() {
   imageViewer->Render();
   imageViewer->GetRenderer()->ResetCamera();
 
-  int* size = m_vtkView->GetRenderWindow()->GetSize();
-  m_width = size[0];
-  m_height = size[1];
-  cout << std::endl << m_width << " " << m_height;
   renderWindowInteractor->Start();
 }
 
@@ -191,6 +245,8 @@ void MainWindow::sliderChanged(int value) {
         (myVtkInteractorStyleImage*)m_vtkView->GetRenderWindow()
             ->GetInteractor()
             ->GetInteractorStyle();
+    if (m_topoviewer) m_topoviewer->UpdateTopoView(value);
+
     if (style) {
       style->updateSliceMsg(value);
     }
@@ -200,42 +256,15 @@ void MainWindow::sliderChanged(int value) {
 void MainWindow::updateSlider(int value) { m_slider->setValue(value); }
 
 void MainWindow::test1() {
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
-  reader->Update();
+  vtkRenderer* ren = m_renderer;
+  if (m_vtkImageViewer) ren = m_vtkImageViewer->GetRenderer();
 
-  vtkSmartPointer<vtkImageData> imageData = reader->GetOutput();
-  vtkNew(vtkImageData, output);
-  fetchYZImage(imageData, output);
-  printImageDetails(imageData);
-  printImageDetails(output);
-
-  vtkNew<vtkImageMapper> imageMapper;
-  imageMapper->SetInputData(output);
-  imageMapper->SetColorWindow(255);
-  imageMapper->SetColorLevel(127);
-  imageMapper->SetRenderToRectangle(true);
-
-  vtkNew<vtkActor2D> imageActor;
-  imageActor->SetMapper(imageMapper);
-  vtkCoordinate* p2 = imageActor->GetPosition2Coordinate();
-  p2->SetValue(1.0, 1.0);
-
-  vtkNew(vtkNamedColors, colors);
-  vtkNew(vtkRenderer, renderer);
-  renderer->SetViewport(m_topoX, m_topoY, m_topoX + m_topoWidth,
-                        m_topoY + m_topoHeight);
-  renderer->AddActor2D(imageActor);
-  m_topoRenderer = renderer.Get();
-  ViewportBorder(renderer, colors->GetColor3d("White").GetData());
-
-  m_vtkView->GetRenderWindow()->AddRenderer(renderer);
-  m_vtkView->GetRenderWindow()->Render();
-
-  int* size = m_vtkView->GetRenderWindow()->GetSize();
-  m_width = size[0];
-  m_height = size[1];
-  cout << std::endl << m_width << " " << m_height;
+  if (!m_topoviewer) {
+    m_topoviewer = new avTopoViewerEx(m_topoImage, ren);
+    int* d = m_imageVolume->GetDimensions();
+    m_topoviewer->SetMaxSlice(d[2]);
+    m_topoviewer->Start();
+    }
 }
 
 void MainWindow::addDicomImageInViewport() {
@@ -413,7 +442,7 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer> renderer,
   renderer->AddViewProp(actor);
 }
 
-void MainWindow::printImageDetails(vtkSmartPointer<vtkImageData>& image) {
+void MainWindow::printImageDetails(vtkImageData* image) {
   int* dims = image->GetDimensions();
   int xdim = dims[0];
   int ydim = dims[1];
@@ -421,6 +450,17 @@ void MainWindow::printImageDetails(vtkSmartPointer<vtkImageData>& image) {
   cout << "\nX:" << xdim << " Ydim:" << ydim << " Zdim:" << zdim;
   double* origin = image->GetOrigin();
   cout << "\nOrigin:" << origin[0] << "," << origin[0] << "," << origin[0];
+
+  double* spacing = image->GetSpacing();
+  cout << "\n SPacing:";
+  for (int i = 0; i < 3; i++) {
+    cout << spacing[i] << " ";
+  }
+
+  cout << "\n Image Length:";
+  for (int i = 0; i < 3; i++) {
+    cout << spacing[i] * dims[i] << "  ";
+  }
 }
 
 void MainWindow::test2() {}
@@ -437,84 +477,15 @@ void MainWindow::DeviceToNormalised(int dx, int dy, double& nx, double& ny) {
 }
 
 void MainWindow::ProcessMousePoint(int mx, int my) {
-  if (m_topoDragging) {
-    int moveX = mx - m_dragStartX;
-    int moveY = my - m_dragStartY;
-
-    double x1, y1, x2, y2;
-    x1 = m_topoX + ((double)moveX / m_width);
-    y1 = m_topoY + ((double)moveY / m_height);
-
-    m_topoRenderer->SetViewport(x1, y1, x1 + m_topoWidth, y1 + m_topoHeight);
-    m_topoRenderer->GetRenderWindow()->Render();
-  } else {
-    IsPointWithinTopo(mx, my);
-  }
+  if (m_topoviewer) m_topoviewer->ProcessMousePoint(mx, my);
 }
 
 void MainWindow::LeftButtonDown(int mx, int my) {
-  if (IsPointWithinTopo(mx, my)) {
-    m_topoDragging = true;
-    m_dragStartX = mx;
-    m_dragStartY = my;
-  }
+  if (m_topoviewer) m_topoviewer->LeftButtonDown(mx, my);
 }
 
 void MainWindow::LeftButtonUp(int mx, int my) {
-  if (m_topoDragging) {
-    m_topoDragging = false;
-    int moveX = mx - m_dragStartX;
-    int moveY = my - m_dragStartY;
-
-    double x1, y1, x2, y2;
-    x1 = m_topoX + ((double)moveX / m_width);
-    y1 = m_topoY + ((double)moveY / m_height);
-    m_topoX = x1;
-    m_topoY = y1;
-    m_topoRenderer->GetRenderWindow()->Render();
-  }
+  if (m_topoviewer) m_topoviewer->LeftButtonUp(mx, my);
 }
 
-bool MainWindow::IsPointWithinTopo(int dx, int dy) {
-  double x1 = m_topoX;
-  double y1 = m_topoY;
-  double x2 = m_topoX + m_topoWidth;
-  double y2 = m_topoY + m_topoHeight;
-
-  // std::cout << std::endl << x1 << "  " << y1 << " " << x2 << "  " << y2;
-  // std::cout << std::endl << m_width << " " << m_height;
-
-  int dx1, dy1, dx2, dy2;
-  NormalisedToDeviceCoordinates(x1, y1, dx1, dy1);
-  NormalisedToDeviceCoordinates(x2, y2, dx2, dy2);
-
-  // std::cout << std::endl << dx1 << "  " << dy1 << "  " << dx2 << "  " << dy2;
-  // std::cout << "\ndx:" << dx << " dy:" << dy;
-
-  if (dx >= dx1 && dx <= dx2 && dy >= dy1 && dy <= dy2) {
-    SelectTopo();
-    return true;
-  }
-
-  DeselectTopo();
-
-  return false;
-}
-
-void MainWindow::SelectTopo() {
-  if (m_topoHighlighted) return;
-  m_topoHighlighted = true;
-  vtkNew(vtkNamedColors, colors);
-  m_topoBorderProperty->SetColor(colors->GetColor3d("Gold").GetData());
-  m_topoBorderProperty->SetLineWidth(8.0);  // Line Width
-  m_vtkView->GetRenderWindow()->Render();
-}
-
-void MainWindow::DeselectTopo() {
-  if (!m_topoHighlighted) return;
-  m_topoHighlighted = false;
-  vtkNew(vtkNamedColors, colors);
-  m_topoBorderProperty->SetColor(colors->GetColor3d("White").GetData());
-  m_topoBorderProperty->SetLineWidth(4.0);  // Line Width
-  m_vtkView->GetRenderWindow()->Render();
-}
+vtkRenderWindowInteractor* MainWindow::getInteractor() { return m_interactor; }

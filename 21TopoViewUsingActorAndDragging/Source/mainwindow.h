@@ -7,6 +7,7 @@
 #include "vtkImageData.h"
 #include "vtkSmartPointer.h"
 #include "vtkImagePlaneWidget.h"
+#include "avTopoViewerEx.h"
 
 class QVTKWidget;
 class QVBoxLayout;
@@ -37,8 +38,9 @@ class MainWindow : public QMainWindow {
   void LeftButtonDown(int mx, int my);
   void LeftButtonUp(int mx, int my);
 
-  void DrawImage();
+  void ReadTopoImage();
   vtkRenderWindowInteractor* getInteractor();
+
 
  protected:
   void addDicomImageInViewport();
@@ -52,11 +54,6 @@ class MainWindow : public QMainWindow {
                     vtkSmartPointer<vtkImageData>& output);
 
   void InitialiseDICOM();
-  bool IsPointWithinTopo(int x, int y);
-  void SelectTopo();
-  void DeselectTopo();
-
-  void DrawActorBorder(double* color);
 
  private slots:
 
@@ -103,6 +100,11 @@ class MainWindow : public QMainWindow {
   vtkActor2D* m_image2DActor = nullptr;
   vtkActor2D* m_topoActor = nullptr;
   vtkRenderWindowInteractor* m_interactor = nullptr;
+
+  avTopoViewerEx* m_topoviewer = nullptr;
+  vtkSmartPointer<vtkImageData> m_topoImage;
+  vtkSmartPointer<vtkImageData> m_imageVolume;
+
 };
 
 #endif  // MAINWINDOW_H
