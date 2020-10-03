@@ -3,6 +3,7 @@
 
 #include <vtkImageData.h>
 #include <vtkSmartPointer.h>
+#include <vtkNamedColors.h>
 
 class vtkRenderer;
 class vtkActor2D;
@@ -13,9 +14,7 @@ class vtkRenderWindowInteractor;
 
 class avTopoViewerEx {
  public:
-  enum class DirectionAxis { X_AXIS, Y_AXIS, Z_AXIS };
-
-  explicit avTopoViewerEx(vtkSmartPointer<vtkImageData> data,
+  explicit avTopoViewerEx(vtkSmartPointer<vtkImageData> topoimage,
                       vtkSmartPointer<vtkRenderer> renderer);
   ~avTopoViewerEx();
 
@@ -23,7 +22,7 @@ class avTopoViewerEx {
   void SetWindowLevel(double window, double level);
 
   // Note: Specify values in normalised viewport (0.0 to 1.0)
-  void SetViewSize(double width, double height); 
+  void SetTopoViewSize(double width, double height); 
   void SetTopoPositionNormalised(double top, double left);
   void SetBorderColor(std::string& color);
   void SetTopoLineColor(std::string& color);
@@ -68,26 +67,24 @@ class avTopoViewerEx {
   int m_minSliceNumber;
   int m_maxSliceNumber;
 
-  int m_topoX_device = 0;
-  int m_topoY_device = 0;
-  int m_topoWidth_device = 10;
-  int m_topoHeight_device = 10;
-  int m_topoMinX = 0;
-  int m_topoMinY = 0;
-  int m_topoMaxX = 10;
-  int m_topoMaxY = 10;
+  int m_topoX_DC = 0;
+  int m_topoY_DC = 0;
+  int m_topoWidth_DC = 10;
+  int m_topoHeight_DC = 10;
 
+  // TopoView position (left,bottom) and (top,right) in device coordinates
+  int m_topoMinXDC = 0;
+  int m_topoMinYDC = 0;
+  int m_topoMaxXDC = 10;
+  int m_topoMaxYDC = 10;
+
+  // TopoView position in normalised viewport coordinates 
   double m_topoX = 0.0;
   double m_topoY = 0.0;
   double m_topoWidth = 0.2;
   double m_topoHeight = 0.2;
   double m_topMargin = 0.0;
   double m_leftMargin = 0.0;
-
-  double m_viewport[4] = {0, 0, 1, 1}; // viewport bounds in normalised
-
-  DirectionAxis m_viewingaxis = DirectionAxis::Z_AXIS;
-  DirectionAxis m_topoaxis = DirectionAxis::X_AXIS;
 
   double m_window = 255.0;
   double m_level = 127.5;
@@ -108,6 +105,8 @@ class avTopoViewerEx {
 
   int m_windowWidth;
   int m_windowHeight;
+
+  vtkNew<vtkNamedColors> m_colors;
 };
 
 #endif  // MAINWINDOW_H

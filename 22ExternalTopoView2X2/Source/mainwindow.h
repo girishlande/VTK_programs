@@ -3,12 +3,12 @@
 
 #include <QMainWindow>
 
-#include "ui_mainwindow.h"
-#include "vtkImageData.h"
-#include "vtkSmartPointer.h"
-#include "vtkImagePlaneWidget.h"
-#include "vtkDICOMImageReader.h"
 #include "avTopoViewerEx.h"
+#include "ui_mainwindow.h"
+#include "vtkDICOMImageReader.h"
+#include "vtkImageData.h"
+#include "vtkImagePlaneWidget.h"
+#include "vtkSmartPointer.h"
 
 class QVTKWidget;
 class QVBoxLayout;
@@ -56,10 +56,7 @@ class MainWindow : public QMainWindow {
   void test1();
   void test2();
   void sliderChanged(int value);
-  void readSingleImage();
-  void readImage(int index);
   void LayoutChanged(int index);
-  void readAllImages();
   void initialiseWithDICOM();
 
  protected:
@@ -67,11 +64,10 @@ class MainWindow : public QMainWindow {
   void drawAxialLine();
   void displyRendererDetails(vtkRenderer* renderer);
   void calculateViewportDetails(vtkImageActor* actor);
-  void InitialiseCornerText();
   void SetupLayoutsCombobox();
-  void createMultipleViewports(int rows,int cols);
-  void ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
-                                  double* color, bool last);
+  void createMultipleViewports(int rows, int cols);
+  void ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer, double* color,
+                      bool last);
   void AddImagesInViewports();
   void UpdateImagesInViewports();
   void UpdateSliceNumberCornerText(int sliceNumber, int RendererIndex);
@@ -81,9 +77,7 @@ class MainWindow : public QMainWindow {
   void ClearViewports();
   void ReadImageVolume();
   void ConvertImageVolumeToSeparateImages();
-  void FetchXYImage(vtkSmartPointer<vtkImageData> input,
-               vtkSmartPointer<vtkImageData> output,
-      int Zindex);
+  void FetchXYImage(vtkSmartPointer<vtkImageData> output, int Zindex);
   void DrawTopo();
   void DrawTopoEx();
   void UpdateTopo(int sliceIndex, int topoIndex);
@@ -91,7 +85,6 @@ class MainWindow : public QMainWindow {
   void ReadTopoImage();
 
  private:
-
   Ui::MainWindow* ui;
   vtkImageViewer2* m_vtkImageViewer;
   QVBoxLayout* vboxLayout;
@@ -112,13 +105,8 @@ class MainWindow : public QMainWindow {
   QScrollBar* m_slider;
   int m_minSliceNumber;
   int m_maxSliceNumber;
-  int m_currentSliceNumber=0;
+  int m_currentSliceNumber = 0;
   QComboBox* m_layoutsCombo;
-
-  double m_topoViewWidth = 0.3;
-  double m_topoViewHeight = 0.2;
-  double m_topoMarginTop = 0.05;
-  double m_topoMarginLeft = 0.03;
 
   std::vector<std::string> m_imageFiles;
   vtkImageActor* m_imageactor = nullptr;
@@ -130,11 +118,10 @@ class MainWindow : public QMainWindow {
   std::vector<vtkTextMapper*> m_sliceNumbers;
   std::vector<std::shared_ptr<avTopoViewer>> m_topo;
   std::vector<std::shared_ptr<avTopoViewerEx>> m_topoEx;
-  
+
   std::vector<vtkSmartPointer<vtkImageData>> m_imagedata;
   vtkSmartPointer<vtkImageData> m_imageVolume;
   vtkSmartPointer<vtkImageData> m_topoImage;
-
 
   int m_row = 1;
   int m_col = 1;

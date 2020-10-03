@@ -106,6 +106,8 @@ MainWindow::MainWindow(QWidget* parent)
 
   vboxLayout->addWidget(splitter);
   this->setCentralWidget(centralwidget);
+
+  ReadTopoImage();
 }
 
 void MainWindow::initialiseWithDICOM() {
@@ -277,7 +279,6 @@ void MainWindow::drawAxialLine() {
 void MainWindow::sliderChanged(int value) {
   m_currentSliceNumber = value;
   UpdateImagesInViewports();
-  // readImage(value);
 }
 
 void MainWindow::updateSlider(int value) {  // m_slider->setValue(value);
@@ -320,52 +321,7 @@ void MainWindow::calculateViewportDetails(vtkImageActor* imageActor) {
   m_renderer->GetActiveCamera()->SetParallelScale(ysize);
 }
 
-void MainWindow::readSingleImage() {
-  std::string filepath = m_dicom_dir_path.toStdString() + "/" + m_imageFiles[0];
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetFileName(filepath.c_str());
-  reader->Update();
-
-  vtkNew<vtkImageActor> imageActor;
-  m_imageactor = imageActor.Get();
-  imageActor->SetInputData(reader->GetOutput());
-
-  m_renderer = vtkSmartPointer<vtkRenderer>::New();
-  m_vtkView->GetRenderWindow()->AddRenderer(m_renderer);
-  m_renderer->AddActor2D(imageActor);
-  InitialiseCornerText();
-
-  m_renderer->ResetCamera();
-  m_vtkView->GetRenderWindow()->Render();
-}
-
-void MainWindow::readAllImages() {
-  m_imagedata.clear();
-  for (auto filename : m_imageFiles) {
-    std::string filepath = m_dicom_dir_path.toStdString() + "/" + filename;
-    vtkNew(vtkDICOMImageReader, reader);
-    reader->SetFileName(filepath.c_str());
-    reader->Update();
-    m_imagedata.push_back(reader->GetOutput());
-  }
-}
-
-void MainWindow::readImage(int index) {
-  if (!(index >= 0 && index < m_imageFiles.size())) return;
-  std::string filepath =
-      m_dicom_dir_path.toStdString() + "/" + m_imageFiles[index];
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetFileName(filepath.c_str());
-  reader->Update();
-
-  m_imageactor->SetInputData(reader->GetOutput());
-  m_imageactor->Modified();
-
-  m_renderer->ResetCamera();
-  m_vtkView->GetRenderWindow()->Render();
-}
-
-void MainWindow::test1() { ReadTopoImage(); }
+void MainWindow::test1() {}
 
 void MainWindow::test2() {}
 
@@ -377,30 +333,6 @@ void MainWindow::ReadTopoImage() {
   reader->Update();
 
   m_topoImage = reader->GetOutput();
-}
-
-void MainWindow::InitialiseCornerText() {
-  vtkNew(vtkTextProperty, sliceTextProp);
-  sliceTextProp->SetFontFamilyToCourier();
-  sliceTextProp->SetFontSize(20);
-  sliceTextProp->SetVerticalJustificationToBottom();
-  sliceTextProp->SetJustificationToLeft();
-
-  vtkNew(vtkTextMapper, sliceTextMapper);
-  std::string msg = StatusMessage::Format(0, m_imageFiles.size() - 1);
-  sliceTextMapper->SetInput(msg.c_str());
-  sliceTextMapper->SetTextProperty(sliceTextProp);
-  vtkNew(vtkActor2D, sliceTextActor);
-  sliceTextActor->SetMapper(sliceTextMapper);
-  sliceTextActor->SetPosition(15, 10);
-
-  vtkNew(myVtkInteractorStyleImage, style);
-  m_vtkView->GetRenderWindow()->GetInteractor()->SetInteractorStyle(style);
-  m_interaction = style.Get();
-  style->setMax(m_imageFiles.size() - 1);
-  style->setWindow(this);
-
-  m_renderer->AddActor2D(sliceTextActor);
 }
 
 void MainWindow::SetupLayoutsCombobox() {
@@ -502,7 +434,6 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
   renderWindow->Render();
 
   DrawTopoEx();
- 
 }
 
 void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
@@ -520,10 +451,6 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
   cells->Initialize();
   vtkNew(vtkPolyLine, lines);
 
-  // only draw last line if this is the last viewport
-  // this prevents double vertical lines at right border
-  // if different colors are used for each border, then do
-  // not specify last
   if (last) {
     lines->GetPointIds()->SetNumberOfIds(5);
   } else {
@@ -537,14 +464,11 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
   }
   cells->InsertNextCell(lines);
 
-  // now make tge polydata and display it
   vtkNew(vtkPolyData, poly);
   poly->Initialize();
   poly->SetPoints(points);
   poly->SetLines(cells);
 
-  // use normalized viewport coordinates since
-  // they are independent of window size
   vtkNew(vtkCoordinate, coordinate);
   coordinate->SetCoordinateSystemToNormalizedViewport();
 
@@ -677,19 +601,19 @@ void MainWindow::ReadImageVolume() {
   }
 
   m_imagedata.clear();
-  
+
   for (int i = 0; i < D[2]; i++) {
     vtkNew<vtkImageData> output;
-    FetchXYImage(m_imageVolume, output, i);
+    FetchXYImage(output, i);
     m_imagedata.push_back(output);
   }
 }
 
 void MainWindow::ConvertImageVolumeToSeparateImages() {}
 
-void MainWindow::FetchXYImage(vtkSmartPointer<vtkImageData> input,
-                              vtkSmartPointer<vtkImageData> output,
+void MainWindow::FetchXYImage(vtkSmartPointer<vtkImageData> output,
                               int Zindex) {
+  vtkSmartPointer<vtkImageData> input = m_imageVolume;
   short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
   int* dims = input->GetDimensions();
   int xdim = dims[0];
@@ -733,11 +657,10 @@ void MainWindow::UpdateTopoEx(int sliceIndex, int topoIndex) {
   topo->UpdateTopoView(sliceIndex);
 }
 
-
 void MainWindow::ProcessMousePoint(int mx, int my) {
-  std::cout << "\nX:" << mx << " Y:" << my;
+  //std::cout << "\nX:" << mx << " Y:" << my;
   for (auto t : m_topoEx) {
-    t->ProcessMousePoint(mx,my);
+    t->ProcessMousePoint(mx, my);
   }
 }
 
