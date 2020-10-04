@@ -111,21 +111,14 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 void MainWindow::initialiseWithDICOM() {
-  // readAllImages();
   ReadImageVolume();
   createMultipleViewports(1, 1);
 }
 
-// ------------------------
-// destructor and exit
-// ------------------------
 MainWindow::~MainWindow() { delete ui; }
 void MainWindow::on_actionExit_triggered() { QApplication::quit(); }
 bool is_not_digit(char c) { return !std::isdigit(c); }
 
-// --------------------------------
-// String comparison function
-// --------------------------------
 bool numeric_string_compare(const std::string& s1, const std::string& s2) {
   std::string::const_iterator it1 = s1.begin(), it2 = s2.begin();
 
@@ -146,9 +139,6 @@ bool numeric_string_compare(const std::string& s1, const std::string& s2) {
   return std::lexicographical_compare(it1, s1.end(), it2, s2.end());
 }
 
-// --------------------------------
-// Read DICOM file name from user
-// --------------------------------
 void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QString fileName =
       QFileDialog::getOpenFileName(this, "Select DICOM file", "../models",
@@ -180,102 +170,6 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QTimer::singleShot(100, this, &MainWindow::initialiseWithDICOM);
 }
 
-// -------------------------
-// Create viewport border
-// -------------------------
-void MainWindow::ViewportBorder() {
-  // points start at upper right and proceed anti-clockwise
-  vtkNew(vtkPoints, points);
-  points->SetNumberOfPoints(4);
-  points->InsertPoint(0, 1, 1, 0);
-  points->InsertPoint(1, 0, 1, 0);
-  points->InsertPoint(2, 0, 0, 0);
-  points->InsertPoint(3, 1, 0, 0);
-
-  // create cells, and lines
-  vtkNew(vtkCellArray, cells);
-  cells->Initialize();
-  vtkNew(vtkPolyLine, lines);
-
-  lines->GetPointIds()->SetNumberOfIds(5);
-  for (unsigned int i = 0; i < 4; ++i) {
-    lines->GetPointIds()->SetId(i, i);
-  }
-  lines->GetPointIds()->SetId(4, 0);
-  cells->InsertNextCell(lines);
-
-  // now make tge polydata and display it
-  vtkNew(vtkPolyData, poly);
-  poly->Initialize();
-  poly->SetPoints(points);
-  poly->SetLines(cells);
-
-  // use normalized viewport coordinates since
-  // they are independent of window size
-  vtkNew(vtkCoordinate, coordinate);
-  coordinate->SetCoordinateSystemToNormalizedViewport();
-
-  vtkNew(vtkPolyDataMapper2D, mapper);
-  mapper->SetInputData(poly);
-  mapper->SetTransformCoordinate(coordinate);
-
-  vtkNew(vtkNamedColors, colors);
-  vtkNew(vtkActor2D, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(colors->GetColor3d("Gold").GetData());
-  actor->GetProperty()->SetLineWidth(4.0);  // Line Width
-
-  m_renderer->AddViewProp(actor);
-}
-
-// ---------------------------------------------------------------------
-// Draw axial line indicating slide position in side view of the image
-// ---------------------------------------------------------------------
-void MainWindow::drawAxialLine() {
-  // points start at upper right and proceed anti-clockwise
-  vtkNew(vtkPoints, points);
-  points->SetNumberOfPoints(2);
-  points->InsertPoint(0, 0, 0.1, 0);
-  points->InsertPoint(1, 1, 0.1, 0);
-  m_axialPoints = points.Get();
-
-  // create cells, and lines
-  vtkNew(vtkCellArray, cells);
-  cells->Initialize();
-  vtkNew(vtkPolyLine, lines);
-  lines->GetPointIds()->SetNumberOfIds(2);
-  for (unsigned int i = 0; i < 2; ++i) {
-    lines->GetPointIds()->SetId(i, i);
-  }
-  cells->InsertNextCell(lines);
-
-  // now make tge polydata and display it
-  vtkNew(vtkPolyData, poly);
-  poly->Initialize();
-  poly->SetPoints(points);
-  poly->SetLines(cells);
-
-  // use normalized viewport coordinates since
-  // they are independent of window size
-  vtkNew(vtkCoordinate, coordinate);
-  coordinate->SetCoordinateSystemToNormalizedViewport();
-
-  vtkNew(vtkPolyDataMapper2D, mapper);
-  mapper->SetInputData(poly);
-  mapper->SetTransformCoordinate(coordinate);
-
-  vtkNew(vtkNamedColors, colors);
-  vtkNew(vtkActor2D, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(colors->GetColor3d("red").GetData());
-  actor->GetProperty()->SetLineWidth(1.0);  // Line Width
-  m_axialLineActor = actor.Get();
-  m_renderer->AddViewProp(actor);
-}
-
-// ----------------------------------
-// Handle slider position change
-// ----------------------------------
 void MainWindow::sliderChanged(int value) {
   m_currentSliceNumber = value;
   UpdateImagesInViewports();
@@ -284,41 +178,11 @@ void MainWindow::sliderChanged(int value) {
 void MainWindow::updateSlider(int value) {  // m_slider->setValue(value);
 }
 
-// ---------------------------------------
-// Display details about renderer
-// ---------------------------------------
 void MainWindow::displyRendererDetails(vtkRenderer* renderer) {
   int* pOrigin = renderer->GetOrigin();
   int* pSize = renderer->GetSize();
   cout << "\n Origin and size:" << pOrigin[0] << "  " << pOrigin[1]
        << "  Size:" << pSize[0] << "  " << pSize[1];
-}
-
-// ----------------------------------------------
-// Calculate how big viewport should be for image
-// ----------------------------------------------
-void MainWindow::calculateViewportDetails(vtkImageActor* imageActor) {
-  double b[6];
-  imageActor->GetDisplayBounds(b);
-  double xsize = b[1];
-  double ysize = b[3];
-  cout << "\nImage size:" << xsize << " " << ysize;
-
-  int* p = m_vtkImageViewer->GetRenderer()->GetSize();
-  double rxsize = p[0];
-  double rysize = p[1];
-  cout << "\nViewer size:" << rxsize << " " << rysize;
-
-  double vxsize = (xsize / rxsize);
-  double vysize = (ysize / rysize);
-  double vminx = 0.05;
-  double vminy = 0.95 - vysize;
-  m_renderer->SetViewport(vminx, vminy, vminx + vxsize, vminy + vysize);
-  int* p1 = m_renderer->GetSize();
-  double rxsize1 = p1[0];
-  double rysize1 = p1[1];
-  cout << "\nViewport size:" << rxsize1 << " " << rysize1;
-  m_renderer->GetActiveCamera()->SetParallelScale(ysize);
 }
 
 void MainWindow::test1() {}
@@ -340,12 +204,10 @@ void MainWindow::SetupLayoutsCombobox() {
   m_layoutconfig.push_back({"1x2", 1, 2});
   m_layoutconfig.push_back({"1x3", 1, 3});
   m_layoutconfig.push_back({"1x4", 1, 4});
-
   m_layoutconfig.push_back({"2x1", 2, 1});
   m_layoutconfig.push_back({"2x2", 2, 2});
   m_layoutconfig.push_back({"2x3", 2, 3});
   m_layoutconfig.push_back({"2x4", 2, 4});
-
   m_layoutconfig.push_back({"3x1", 3, 1});
   m_layoutconfig.push_back({"3x2", 3, 2});
   m_layoutconfig.push_back({"3x3", 3, 3});
@@ -398,7 +260,6 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
 
       vtkNew(vtkRenderer, renderer);
       renderer->AddActor(actor);
-      // renderer->SetBackground(colors->GetColor3d("SlateGray").GetData());
       m_renderers.push_back(renderer.Get());
 
       vtkNew<vtkImageActor> imageactor;
@@ -431,14 +292,12 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
   style->setMax(m_imageFiles.size() - 1);
   style->setWindow(this);
 
-  renderWindow->Render();
-
   DrawTopoEx();
+  renderWindow->Render();
 }
 
 void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
                                 double* color, bool last) {
-  // points start at upper right and proceed anti-clockwise
   vtkNew(vtkPoints, points);
   points->SetNumberOfPoints(4);
   points->InsertPoint(0, 1, 1, 0);
@@ -446,7 +305,6 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
   points->InsertPoint(2, 0, 0, 0);
   points->InsertPoint(3, 1, 0, 0);
 
-  // create cells, and lines
   vtkNew(vtkCellArray, cells);
   cells->Initialize();
   vtkNew(vtkPolyLine, lines);
@@ -513,7 +371,6 @@ void MainWindow::UpdateImagesInViewports() {
     UpdateSliceNumberCornerText(index, rendererIndex);
     UpdateTopoEx(index, rendererIndex);
 
-    m_renderers[rendererIndex]->Render();
     index++;
   }
   m_vtkView->GetRenderWindow()->Render();
@@ -580,7 +437,6 @@ void MainWindow::ClearViewports() {
   m_renderers.clear();
   m_imageActors.clear();
   m_sliceNumbers.clear();
-  m_topo.clear();
   m_topoEx.clear();
 }
 
@@ -591,14 +447,14 @@ void MainWindow::ReadImageVolume() {
 
   m_imageVolume = reader->GetOutput();
 
-  // Separate image volume into separate images.
+  ConvertImageVolumeToSeparateImages();
+}
+
+void MainWindow::ConvertImageVolumeToSeparateImages() {
   int* D = m_imageVolume->GetDimensions();
   int xDim = D[0];
   int yDim = D[1];
   int zDim = D[2];
-  for (int i = 0; i < 3; i++) {
-    cout << D[i] << "  ";
-  }
 
   m_imagedata.clear();
 
@@ -608,8 +464,6 @@ void MainWindow::ReadImageVolume() {
     m_imagedata.push_back(output);
   }
 }
-
-void MainWindow::ConvertImageVolumeToSeparateImages() {}
 
 void MainWindow::FetchXYImage(vtkSmartPointer<vtkImageData> output,
                               int Zindex) {
@@ -635,21 +489,10 @@ void MainWindow::FetchXYImage(vtkSmartPointer<vtkImageData> output,
   }
 }
 
-void MainWindow::DrawTopo() {
-  for (auto t : m_topo) {
-    t->Start();
-  }
-}
-
 void MainWindow::DrawTopoEx() {
   for (auto t : m_topoEx) {
     t->Start();
   }
-}
-
-void MainWindow::UpdateTopo(int sliceIndex, int topoIndex) {
-  std::shared_ptr<avTopoViewer> topo = m_topo[topoIndex];
-  topo->UpdateTopoView(sliceIndex);
 }
 
 void MainWindow::UpdateTopoEx(int sliceIndex, int topoIndex) {
@@ -658,7 +501,7 @@ void MainWindow::UpdateTopoEx(int sliceIndex, int topoIndex) {
 }
 
 void MainWindow::ProcessMousePoint(int mx, int my) {
-  //std::cout << "\nX:" << mx << " Y:" << my;
+  // std::cout << "\nX:" << mx << " Y:" << my;
   for (auto t : m_topoEx) {
     t->ProcessMousePoint(mx, my);
   }

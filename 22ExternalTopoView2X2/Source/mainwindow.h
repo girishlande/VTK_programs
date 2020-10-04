@@ -60,10 +60,7 @@ class MainWindow : public QMainWindow {
   void initialiseWithDICOM();
 
  protected:
-  void ViewportBorder();
-  void drawAxialLine();
   void displyRendererDetails(vtkRenderer* renderer);
-  void calculateViewportDetails(vtkImageActor* actor);
   void SetupLayoutsCombobox();
   void createMultipleViewports(int rows, int cols);
   void ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer, double* color,
@@ -78,9 +75,7 @@ class MainWindow : public QMainWindow {
   void ReadImageVolume();
   void ConvertImageVolumeToSeparateImages();
   void FetchXYImage(vtkSmartPointer<vtkImageData> output, int Zindex);
-  void DrawTopo();
   void DrawTopoEx();
-  void UpdateTopo(int sliceIndex, int topoIndex);
   void UpdateTopoEx(int sliceIndex, int topoIndex);
   void ReadTopoImage();
 
@@ -116,7 +111,6 @@ class MainWindow : public QMainWindow {
   std::vector<vtkRenderer*> m_renderers;
   std::vector<vtkImageActor*> m_imageActors;
   std::vector<vtkTextMapper*> m_sliceNumbers;
-  std::vector<std::shared_ptr<avTopoViewer>> m_topo;
   std::vector<std::shared_ptr<avTopoViewerEx>> m_topoEx;
 
   std::vector<vtkSmartPointer<vtkImageData>> m_imagedata;
