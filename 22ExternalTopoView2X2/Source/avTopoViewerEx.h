@@ -27,7 +27,7 @@ class avTopoViewerEx {
   void SetTopoLineColor(std::string& color);
 
   void SetMaxSlice(int sliceCount);
-  void UpdateTopoView(int viewingslice);
+  void SetCurrentSlice(int slice_number);
 
   void Start();
   void SetTopoPositionDevice(int mx, int my);
@@ -53,9 +53,11 @@ class avTopoViewerEx {
   void NormalisedToDeviceCoordinates(double nx, double ny, int& dx, int& dy);
   void DeviceToNormalised(int dx, int dy, double& nx, double& ny);
   void RestrictWithinViewport(int& dx, int& dy);
+  void UpdateTopoLine();
 
  private:
   
+  int m_sliceNumber = 0;
   int m_minSliceNumber = 0;
   int m_maxSliceNumber = 0;
 
@@ -63,6 +65,8 @@ class avTopoViewerEx {
   int m_topoY_DC = 0;
   int m_topoWidth_DC = 0;
   int m_topoHeight_DC = 0;
+  int m_topMargin_DC = 10;
+  int m_leftMargin_DC = 10;
 
   // TopoView position (left,bottom) and (top,right) in device coordinates
   int m_topoMinXDC = 0;

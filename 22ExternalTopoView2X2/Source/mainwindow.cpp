@@ -234,6 +234,7 @@ void MainWindow::LayoutChanged(int index) {
   m_currentSliceNumber = 0;
   createMultipleViewports(config.row, config.col);
   SynchronizeSlider();
+  UpdateImagesInViewports();
 }
 
 void MainWindow::createMultipleViewports(int rows, int cols) {
@@ -274,7 +275,7 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
       viewport[2] = (j + 1) * xstep;
       viewport[3] = (i + 1) * ystep;
       renderer->SetViewport(viewport);
-      ViewportBorder(renderer, colors->GetColor3d("Gold").GetData(), true);
+      ViewportBorder(renderer, colors->GetColor3d("Gray").GetData(), true);
       renderWindow->AddRenderer(renderer);
 
       std::shared_ptr<avTopoViewerEx> topo =
@@ -337,7 +338,7 @@ void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
   vtkNew(vtkActor2D, actor);
   actor->SetMapper(mapper);
   actor->GetProperty()->SetColor(color);
-  actor->GetProperty()->SetLineWidth(4.0);  // Line Width
+  actor->GetProperty()->SetLineWidth(1.0);  // Line Width
 
   renderer->AddViewProp(actor);
 }
@@ -497,7 +498,7 @@ void MainWindow::DrawTopoEx() {
 
 void MainWindow::UpdateTopoEx(int sliceIndex, int topoIndex) {
   std::shared_ptr<avTopoViewerEx> topo = m_topoEx[topoIndex];
-  topo->UpdateTopoView(sliceIndex);
+  topo->SetCurrentSlice(sliceIndex);
 }
 
 void MainWindow::ProcessMousePoint(int mx, int my) {

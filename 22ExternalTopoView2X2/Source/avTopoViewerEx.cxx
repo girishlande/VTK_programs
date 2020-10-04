@@ -39,8 +39,8 @@ void avTopoViewerEx::SetTopoViewSize(double width, double height) {
 void avTopoViewerEx::AddTopoline() {
   vtkNew<vtkPoints> points;
   points->SetNumberOfPoints(2);
-  points->InsertPoint(0, 0, m_topoHeight / 2, 0);
-  points->InsertPoint(1, m_topoWidth, m_topoHeight / 2, 0);
+  points->InsertPoint(0, 0, 0, 0);
+  points->InsertPoint(1, m_topoWidth, 0, 0);
   m_linePoints = points.Get();
 
   vtkNew<vtkPolyLine> lines;
@@ -72,10 +72,17 @@ void avTopoViewerEx::AddTopoline() {
   m_renderer->AddViewProp(actor);
 }
 
-void avTopoViewerEx::UpdateTopoView(int current) {
-  if (current < m_minSliceNumber || current > m_maxSliceNumber) return;
+void avTopoViewerEx::SetCurrentSlice(int slice_number) {
+  if (slice_number < m_minSliceNumber || slice_number > m_maxSliceNumber)
+    return;
+  if (m_sliceNumber != slice_number) {
+    m_sliceNumber = slice_number;
+    UpdateTopoLine();
+  }
+}
 
-  float val = (float)current / m_maxSliceNumber;
+void avTopoViewerEx::UpdateTopoLine() {
+  float val = (float)m_sliceNumber / m_maxSliceNumber;
 
   if (m_linePoints) {
     double p1[3] = {0, val * m_topoHeight, 0};
@@ -291,14 +298,15 @@ void avTopoViewerEx::CacheWindowDimension() {
   int offset = 2;
   m_topoMinXDC = v[0] * m_windowWidth + offset;
   m_topoMinYDC = v[1] * m_windowHeight + offset;
-  m_topoX_DC = m_topoMinXDC + 10;
-  m_topoY_DC = m_topoMinYDC + 10;
 
   int viewportMaxXDC = v[2] * m_windowWidth;
   int viewportMaxYDC = v[3] * m_windowHeight;
 
   m_topoMaxXDC = viewportMaxXDC - m_topoWidth_DC - offset;
   m_topoMaxYDC = viewportMaxYDC - m_topoHeight_DC - offset;
+
+  m_topoX_DC = m_topoMinXDC + m_leftMargin_DC;
+  m_topoY_DC = m_topoMaxYDC - m_topMargin_DC;
 }
 
 void avTopoViewerEx::ProcessMousePoint(int mx, int my) {
