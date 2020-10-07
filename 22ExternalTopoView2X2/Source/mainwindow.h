@@ -9,6 +9,7 @@
 #include "vtkImageData.h"
 #include "vtkImagePlaneWidget.h"
 #include "vtkSmartPointer.h"
+#include "vtkEventQtSlotConnect.h"
 
 class QVTKWidget;
 class QVBoxLayout;
@@ -58,8 +59,13 @@ class MainWindow : public QMainWindow {
   void sliderChanged(int value);
   void LayoutChanged(int index);
   void initialiseWithDICOM();
+  void slot_clicked(vtkObject*, unsigned long, void*, void*);
+  void slot_released(vtkObject*, unsigned long, void*, void*);
+  void slot_moved(vtkObject*, unsigned long, void*, void*);
 
  protected:
+  void SetConnections();
+
   void displyRendererDetails(vtkRenderer* renderer);
   void SetupLayoutsCombobox();
   void createMultipleViewports(int rows, int cols);
@@ -75,6 +81,7 @@ class MainWindow : public QMainWindow {
   void ReadImageVolume();
   void ConvertImageVolumeToSeparateImages();
   void FetchXYImage(vtkSmartPointer<vtkImageData> output, int Zindex);
+  void ToggleVisibility();
   void DrawTopoEx();
   void UpdateTopoEx(int sliceIndex, int topoIndex);
   void ReadTopoImage();
@@ -116,6 +123,7 @@ class MainWindow : public QMainWindow {
   std::vector<vtkSmartPointer<vtkImageData>> m_imagedata;
   vtkSmartPointer<vtkImageData> m_imageVolume;
   vtkSmartPointer<vtkImageData> m_topoImage;
+  vtkNew<vtkEventQtSlotConnect> m_connections;
 
   int m_row = 1;
   int m_col = 1;

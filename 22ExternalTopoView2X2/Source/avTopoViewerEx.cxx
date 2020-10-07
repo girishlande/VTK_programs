@@ -1,5 +1,6 @@
 #include "avTopoViewerEx.h"
 
+#include <math.h>
 #include <vtkActor2D.h>
 #include <vtkCamera.h>
 #include <vtkCommand.h>
@@ -26,6 +27,26 @@ avTopoViewerEx::avTopoViewerEx(vtkSmartPointer<vtkImageData> topoImage,
 
 avTopoViewerEx::~avTopoViewerEx() {}
 
+void avTopoViewerEx::Start() {
+  // Please dont change order of calling following functions.
+  CacheWindowDimension();
+  AddTopoImage();
+  AddTopoBorder();
+  AddTopoline(1);
+  AddTopoline(2);
+}
+
+bool avTopoViewerEx::IsVisible() { return m_visible; }
+
+void avTopoViewerEx::SetVisibility(bool flag) {
+  if (m_visible == flag) return;
+  m_visible = flag;
+  if (m_topoActor) m_topoActor->SetVisibility(m_visible);
+  if (m_LineActor1) m_LineActor1->SetVisibility(m_visible);
+  if (m_LineActor2) m_LineActor1->SetVisibility(m_visible);
+  if (m_borderActor) m_borderActor->SetVisibility(m_visible);
+}
+
 void avTopoViewerEx::SetWindowLevel(double window, double level) {
   m_window = window;
   m_level = level;
@@ -36,12 +57,11 @@ void avTopoViewerEx::SetTopoViewSize(double width, double height) {
   if (height > 0.0 && height < 1.0) m_topoHeight = height;
 }
 
-void avTopoViewerEx::AddTopoline() {
+void avTopoViewerEx::AddTopoline(int index) {
   vtkNew<vtkPoints> points;
   points->SetNumberOfPoints(2);
   points->InsertPoint(0, 0, 0, 0);
   points->InsertPoint(1, m_topoWidth, 0, 0);
-  m_linePoints = points.Get();
 
   vtkNew<vtkPolyLine> lines;
   lines->GetPointIds()->SetNumberOfIds(2);
@@ -64,10 +84,20 @@ void avTopoViewerEx::AddTopoline() {
 
   vtkNew<vtkActor2D> actor;
   actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(m_colors->GetColor3d(m_lineColor).GetData());
-  actor->GetProperty()->SetLineWidth(1.0);
-  m_LineActor = actor.Get();
-  m_LineActor->SetDisplayPosition(m_topoX_DC, m_topoY_DC);
+  if (index == 1) {
+    m_linePoints1 = points.Get();
+    m_LineActor1 = actor.Get();
+    m_LineActor1->SetDisplayPosition(m_topoX_DC, m_topoY_DC);
+    actor->GetProperty()->SetColor(m_colors->GetColor3d(m_lineColor).GetData());
+    actor->GetProperty()->SetLineWidth(2.0);
+  } else {
+    m_linePoints2 = points.Get();
+    m_LineActor2 = actor.Get();
+    m_LineActor2->SetDisplayPosition(m_topoX_DC, m_topoY_DC);
+    actor->GetProperty()->SetColor(
+        m_colors->GetColor3d(m_shadowColor).GetData());
+    actor->GetProperty()->SetLineWidth(1.0);
+  }
 
   m_renderer->AddViewProp(actor);
 }
@@ -77,51 +107,25 @@ void avTopoViewerEx::SetCurrentSlice(int slice_number) {
     return;
   if (m_sliceNumber != slice_number) {
     m_sliceNumber = slice_number;
-    UpdateTopoLine();
+    UpdateTopoLineUsingSliceNumber();
   }
 }
 
-void avTopoViewerEx::UpdateTopoLine() {
+void avTopoViewerEx::UpdateTopoLineUsingSliceNumber() {
   float val = (float)m_sliceNumber / m_maxSliceNumber;
 
-  if (m_linePoints) {
+  if (m_linePoints1 && m_linePoints2) {
     double p1[3] = {0, val * m_topoHeight, 0};
     double p2[3] = {m_topoWidth, val * m_topoHeight, 0};
-    m_linePoints->SetPoint(0, p1);
-    m_linePoints->SetPoint(1, p2);
-    if (m_LineActor) m_LineActor->Modified();
+    m_linePoints1->SetPoint(0, p1);
+    m_linePoints1->SetPoint(1, p2);
+    m_linePoints2->SetPoint(0, p1);
+    m_linePoints2->SetPoint(1, p2);
+    if (m_LineActor1 && m_LineActor2) {
+      m_LineActor1->Modified();
+      m_LineActor2->Modified();
+    }
   }
-}
-
-void avTopoViewerEx::DisplyRendererDetails(vtkRenderer* renderer) {
-  int* pOrigin = renderer->GetOrigin();
-  int* pSize = renderer->GetSize();
-  cout << "\n Origin and size:" << pOrigin[0] << "  " << pOrigin[1]
-       << "  Size:" << pSize[0] << "  " << pSize[1];
-}
-
-void avTopoViewerEx::CalculateViewportDetails(vtkImageActor* imageActor) {
-  double b[6];
-  imageActor->GetDisplayBounds(b);
-  double xsize = b[1];
-  double ysize = b[3];
-  cout << "\nImage size:" << xsize << " " << ysize;
-
-  int* p = m_renderer->GetSize();
-  double rxsize = p[0];
-  double rysize = p[1];
-  cout << "\nViewer size:" << rxsize << " " << rysize;
-
-  double vxsize = (xsize / rxsize);
-  double vysize = (ysize / rysize);
-  double vminx = 0.05;
-  double vminy = 0.95 - vysize;
-  m_renderer->SetViewport(vminx, vminy, vminx + vxsize, vminy + vysize);
-  int* p1 = m_renderer->GetSize();
-  double rxsize1 = p1[0];
-  double rysize1 = p1[1];
-  cout << "\nViewport size:" << rxsize1 << " " << rysize1;
-  m_renderer->GetActiveCamera()->SetParallelScale(ysize);
 }
 
 void avTopoViewerEx::SetTopoPositionNormalised(double top, double left) {
@@ -135,43 +139,42 @@ void avTopoViewerEx::SetBorderColor(std::string& color) {
 void avTopoViewerEx::SetTopoLineColor(std::string& color) {
   m_lineColor = color;
 }
-
-void avTopoViewerEx::CalculateViewportSize() {
-  assert(m_renderer);
-
-  double v[4];  // minx, miny, maxx, maxy;
-  m_renderer->GetViewport(v);
-  std::cout << std::endl << "Viewport \n";
-  for (int i = 0; i < 4; i++) cout << std::endl << v[i];
-
-  double vw = v[2] - v[0];
-  assert(vw > 0);
-  double vh = v[3] - v[1];
-  assert(vh > 0);
-  m_topoWidth = vw * m_topoWidth;
-  m_topoHeight = vh * m_topoHeight;
-  m_leftMargin = vw * m_leftMargin;
-  m_topMargin = vh * m_topMargin;
-
-  double tminx = v[0] + m_leftMargin;
-  double tminy = v[1] + (vh - (m_topoHeight + m_topMargin));
-  double tmaxx = tminx + m_topoWidth;
-  double tmaxy = tminy + m_topoHeight;
-  m_renderer->SetViewport(tminx, tminy, tmaxx, tmaxy);
+void avTopoViewerEx::SetTopoLineShadowColor(std::string& color) {
+  m_shadowColor = color;
 }
 
-void avTopoViewerEx::Start() {
-  // Please dont change order of calling following functions.
-  CacheWindowDimension();
-  AddTopoImage();
-  AddTopoBorder();
-  AddTopoline();
+void avTopoViewerEx::SetLineReferencePointNormalised(double minPos,
+                                                     double maxPos) {
+  if (minPos >= 0 && minPos <= 1.0) {
+    m_sliceMinPos = minPos;
+    if (maxPos >= 0.0 && minPos <= 1.0) {
+      m_sliceMaxPos = maxPos;
+    } else {
+      m_sliceMaxPos = minPos;
+    }
+    UpdateTopoLineUsingReferencePoints();
+  }
+}
+
+void avTopoViewerEx::UpdateTopoLineUsingReferencePoints() {
+  if (m_linePoints1 && m_linePoints2) {
+    double p1[3] = {0, m_sliceMinPos * m_topoHeight, 0};
+    double p2[3] = {m_topoWidth, m_sliceMaxPos * m_topoHeight, 0};
+    m_linePoints1->SetPoint(0, p1);
+    m_linePoints1->SetPoint(1, p2);
+    m_linePoints2->SetPoint(0, p1);
+    m_linePoints2->SetPoint(1, p2);
+    if (m_LineActor1 && m_LineActor2) {
+      m_LineActor1->Modified();
+      m_LineActor2->Modified();
+    }
+  }
 }
 
 void avTopoViewerEx::AddTopoImage() {
   vtkNew<vtkImageResize> resize;
   resize->SetInputData(m_topoImage);
-  resize->SetOutputDimensions(100, 100, 1);
+  resize->SetOutputDimensions(m_topoImageSize_DC, m_topoImageSize_DC, 1);
   resize->Update();
 
   vtkNew<vtkImageMapper> imageMapper;
@@ -235,14 +238,6 @@ void avTopoViewerEx::AddTopoBorder() {
   m_renderer->AddViewProp(actor);
 }
 
-void avTopoViewerEx::SetTopoPositionDevice(int mx, int my) {
-  if (m_topoActor) {
-    m_topoActor->SetDisplayPosition(mx, my);
-    m_borderActor->SetDisplayPosition(mx, my);
-    m_renderer->GetRenderWindow()->Render();
-  }
-}
-
 bool avTopoViewerEx::IsPointWithinTopo(int dx, int dy) {
   if (dx >= m_topoX_DC && dx <= (m_topoX_DC + m_topoWidth_DC) &&
       dy >= m_topoY_DC && dy <= (m_topoY_DC + m_topoHeight_DC)) {
@@ -292,9 +287,15 @@ void avTopoViewerEx::CacheWindowDimension() {
   int viewportWidthDC = m_windowWidth * viewportWidth;
   int viewportHeightDC = m_windowHeight * viewportHeight;
 
+  m_topoImageSize_DC = ceil(m_topoWidth * viewportWidthDC);
+
+  // make sure our topo is always square
+  m_topoHeight = (m_topoWidth * viewportWidthDC) / viewportHeightDC;
+
   m_topoWidth_DC = m_topoWidth * viewportWidthDC;
   m_topoHeight_DC = m_topoHeight * viewportHeightDC;
 
+  // Offset so that User cannot drag topo to overlap with viewport border
   int offset = 2;
   m_topoMinXDC = v[0] * m_windowWidth + offset;
   m_topoMinYDC = v[1] * m_windowHeight + offset;
@@ -313,15 +314,14 @@ void avTopoViewerEx::ProcessMousePoint(int mx, int my) {
   if (m_topoDragging) {
     int moveX = mx - m_dragStartX;
     int moveY = my - m_dragStartY;
-
     int newXdevice = m_topoX_DC + moveX;
     int newYdevice = m_topoY_DC + moveY;
-
     if (m_topoActor) {
       RestrictWithinViewport(newXdevice, newYdevice);
       m_topoActor->SetDisplayPosition(newXdevice, newYdevice);
       m_borderActor->SetDisplayPosition(newXdevice, newYdevice);
-      m_LineActor->SetDisplayPosition(newXdevice, newYdevice);
+      m_LineActor1->SetDisplayPosition(newXdevice, newYdevice);
+      m_LineActor2->SetDisplayPosition(newXdevice, newYdevice);
       m_renderer->GetRenderWindow()->Render();
     }
   } else {
@@ -340,10 +340,8 @@ void avTopoViewerEx::LeftButtonDown(int mx, int my) {
 void avTopoViewerEx::LeftButtonUp(int mx, int my) {
   if (m_topoDragging) {
     m_topoDragging = false;
-
     int moveX = mx - m_dragStartX;
     int moveY = my - m_dragStartY;
-
     int newXdevice = m_topoX_DC + moveX;
     int newYdevice = m_topoY_DC + moveY;
     RestrictWithinViewport(newXdevice, newYdevice);

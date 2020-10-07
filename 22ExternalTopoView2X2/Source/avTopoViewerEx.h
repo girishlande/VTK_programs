@@ -18,48 +18,53 @@ class avTopoViewerEx {
                           vtkSmartPointer<vtkRenderer> renderer);
   ~avTopoViewerEx();
 
-  void SetWindowLevel(double window, double level);
+  void Start();
+  void SetVisibility(bool flag);
+  bool IsVisible();
 
+  // Configure topoview
   // Note: Specify values in normalised viewport (0.0 to 1.0)
   void SetTopoViewSize(double width, double height);
   void SetTopoPositionNormalised(double top, double left);
   void SetBorderColor(std::string& color);
   void SetTopoLineColor(std::string& color);
-
+  void SetTopoLineShadowColor(std::string& color);
+  void SetWindowLevel(double window, double level);
+  
+  // Updating topoview reference line 
+  void SetLineReferencePointNormalised(double minPos, double maxPos = -1.0);
   void SetMaxSlice(int sliceCount);
   void SetCurrentSlice(int slice_number);
 
-  void Start();
-  void SetTopoPositionDevice(int mx, int my);
-  bool IsPointWithinTopo(int x, int y);
-  void SelectTopo();
-  void DeselectTopo();
-
+  // drag and move topoview
   void ProcessMousePoint(int mx, int my);
   void LeftButtonDown(int mx, int my);
   void LeftButtonUp(int mx, int my);
 
  protected:
+  bool IsPointWithinTopo(int x, int y);
+  void SelectTopo();
+  void DeselectTopo();
 
   void AddTopoImage();
-  void AddTopoline();
+  void AddTopoline(int index);
   void AddTopoBorder();
-  
-  void DisplyRendererDetails(vtkRenderer* renderer);
-  void CalculateViewportDetails(vtkImageActor* actor);
-  void CalculateViewportSize();
-  
+
   void CacheWindowDimension();
   void NormalisedToDeviceCoordinates(double nx, double ny, int& dx, int& dy);
   void DeviceToNormalised(int dx, int dy, double& nx, double& ny);
   void RestrictWithinViewport(int& dx, int& dy);
-  void UpdateTopoLine();
+  void UpdateTopoLineUsingSliceNumber();
+  void UpdateTopoLineUsingReferencePoints();
 
  private:
-  
   int m_sliceNumber = 0;
   int m_minSliceNumber = 0;
   int m_maxSliceNumber = 0;
+
+  // Reference line End points height in topoView on scale of (0.0 to 1.0)
+  double m_sliceMinPos = 0.2;
+  double m_sliceMaxPos = 0.4;
 
   int m_topoX_DC = 0;
   int m_topoY_DC = 0;
@@ -77,10 +82,12 @@ class avTopoViewerEx {
   // TopoView position in normalised viewport coordinates
   double m_topoX = 0.0;
   double m_topoY = 0.0;
-  double m_topoWidth = 0.2;
+  double m_topoWidth = 0.20;
   double m_topoHeight = 0.2;
   double m_topMargin = 0.0;
   double m_leftMargin = 0.0;
+
+  int m_topoImageSize_DC = 100;
 
   double m_window = 255.0;
   double m_level = 127.5;
@@ -88,13 +95,17 @@ class avTopoViewerEx {
   std::string m_topoActiveColor = "white";
   std::string m_borderColor = "gray";
   std::string m_lineColor = "white";
+  std::string m_shadowColor = "black";
 
   vtkProperty2D* m_topoBorderProperty = nullptr;
-  vtkPoints* m_linePoints = nullptr;
-  vtkActor2D* m_LineActor = nullptr;
+  vtkPoints* m_linePoints1 = nullptr;
+  vtkPoints* m_linePoints2 = nullptr;
+  vtkActor2D* m_LineActor1 = nullptr;
+  vtkActor2D* m_LineActor2 = nullptr;
+
   vtkActor2D* m_topoActor = nullptr;
   vtkActor2D* m_borderActor = nullptr;
-  
+
   vtkSmartPointer<vtkImageData> m_topoImage;
   vtkSmartPointer<vtkRenderer> m_renderer;
 
@@ -107,6 +118,7 @@ class avTopoViewerEx {
   int m_windowHeight;
 
   vtkNew<vtkNamedColors> m_colors;
+  bool m_visible = true;
 };
 
 #endif  // MAINWINDOW_H

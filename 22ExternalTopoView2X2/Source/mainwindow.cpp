@@ -187,7 +187,10 @@ void MainWindow::displyRendererDetails(vtkRenderer* renderer) {
 
 void MainWindow::test1() {}
 
-void MainWindow::test2() {}
+void MainWindow::test2() {
+  ToggleVisibility();
+  m_vtkView->GetRenderWindow()->Render();
+}
 
 void MainWindow::ReadTopoImage() {
   QString dicom_dir_path = "../../data/SingleImage";
@@ -212,6 +215,12 @@ void MainWindow::SetupLayoutsCombobox() {
   m_layoutconfig.push_back({"3x2", 3, 2});
   m_layoutconfig.push_back({"3x3", 3, 3});
   m_layoutconfig.push_back({"3x4", 3, 4});
+  m_layoutconfig.push_back({"4x3", 4, 3});
+  m_layoutconfig.push_back({"4x4", 4, 4});
+  m_layoutconfig.push_back({"6x5", 6, 5});
+  m_layoutconfig.push_back({"7x6", 7, 6});
+  m_layoutconfig.push_back({"8x5", 8, 5});
+  m_layoutconfig.push_back({"8x6", 8, 6});
 
   m_layoutsCombo = new QComboBox(this);
   m_layoutsCombo->setFixedHeight(30);
@@ -227,8 +236,6 @@ void MainWindow::SetupLayoutsCombobox() {
 
 void MainWindow::LayoutChanged(int index) {
   LayoutConfig config = m_layoutconfig[index];
-  std::cout << "layout selected:" << config.name.toStdString()
-            << " Row:" << config.row << " Col:" << config.col;
   m_row = config.row;
   m_col = config.col;
   m_currentSliceNumber = 0;
@@ -237,6 +244,7 @@ void MainWindow::LayoutChanged(int index) {
   UpdateImagesInViewports();
 }
 
+#include "vtkEventQtSlotConnect.h"
 void MainWindow::createMultipleViewports(int rows, int cols) {
   ClearViewports();
 
@@ -295,6 +303,32 @@ void MainWindow::createMultipleViewports(int rows, int cols) {
 
   DrawTopoEx();
   renderWindow->Render();
+}
+
+void MainWindow::SetConnections() {
+  m_connections->Connect(
+      m_vtkView->GetRenderWindow()->GetInteractor(),
+      vtkCommand::LeftButtonPressEvent, this,
+      SLOT(slot_clicked(vtkObject*, unsigned long, void*, void*)));
+  m_connections->Connect(
+      m_vtkView->GetRenderWindow()->GetInteractor(),
+      vtkCommand::LeftButtonReleaseEvent, this,
+      SLOT(slot_released(vtkObject*, unsigned long, void*, void*)));
+  m_connections->Connect(
+      m_vtkView->GetRenderWindow()->GetInteractor(),
+      vtkCommand::MouseMoveEvent, this, SLOT(slot_moved(vtkObject*, unsigned long, void*, void*)));
+}
+
+void MainWindow::slot_clicked(vtkObject*, unsigned long, void*, void*) {
+  std::cout << "Clicked." << std::endl;
+}
+
+void MainWindow::slot_released(vtkObject*, unsigned long, void*, void*) {
+  std::cout << "released." << std::endl;
+}
+
+void MainWindow::slot_moved(vtkObject*, unsigned long, void*, void*) {
+  std::cout << "moved." << std::endl;
 }
 
 void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
@@ -487,6 +521,12 @@ void MainWindow::FetchXYImage(vtkSmartPointer<vtkImageData> output,
       short* s = static_cast<short*>(input->GetScalarPointer(x, y, Zindex));
       d[0] = s[0];
     }
+  }
+}
+
+void MainWindow::ToggleVisibility() {
+  for (auto t : m_topoEx) {
+    t->SetVisibility(!t->IsVisible());
   }
 }
 
