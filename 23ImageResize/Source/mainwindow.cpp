@@ -13,6 +13,8 @@
 #include <vtkActor2D.h>
 #include <vtkConeSource.h>
 #include <vtkDICOMImageReader.h>
+#include <vtkImageActor.h>
+#include <vtkImageMapper3D.h>
 #include <vtkImageViewer2.h>
 #include <vtkInteractorStyleImage.h>
 #include <vtkOBJReader.h>
@@ -35,10 +37,19 @@
 #include "QVTKWidget.h"
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
+#include "vtkActor2D.h"
 #include "vtkImageData.h"
 #include "vtkImageMapper.h"
+#include "vtkImageResize.h"
+#include "vtkImageSincInterpolator.h"
 #include "vtkLineSource.h"
 #include "vtkNamedColors.h"
+#include "vtkPNGReader.h"
+#include "vtkPolyDataMapper2D.h"
+#include "vtkPolyLine.h"
+#include "vtkProperty2D.h"
+
+#define AV_MIN_INT16 -32768L
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_vtkImageViewer(nullptr) {
@@ -73,7 +84,7 @@ MainWindow::MainWindow(QWidget* parent)
   container->setLayout(m_container_layout);
 
   QVBoxLayout* tablayout = new QVBoxLayout();
-  QPushButton* b1 = new QPushButton("Test Button", this);
+  QPushButton* b1 = new QPushButton("Resize Using Aspect Ration", this);
   connect(b1, SIGNAL(clicked(bool)), this, SLOT(test1()));
   QPushButton* b2 = new QPushButton("Test Button2", this);
   connect(b2, SIGNAL(clicked(bool)), this, SLOT(test2()));
@@ -106,19 +117,7 @@ void MainWindow::initialiseWithDICOM() {
   QTimer::singleShot(100, this, SLOT(UpdateViewForDICOM()));
 }
 
-void MainWindow::InitialiseView() {
-  vtkNew(vtkSphereSource, sphere);
-  sphere->SetCenter(20, 20, 0);
-  sphere->SetRadius(10);
-  sphere->Update();
-  vtkNew(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(sphere->GetOutputPort());
-  vtkNew(vtkActor, actor);
-  actor->SetMapper(mapper);
-  vtkNew(vtkRenderer, renderer);
-  renderer->AddActor(actor);
-  this->m_vtkView->GetRenderWindow()->AddRenderer(renderer);
-}
+void MainWindow::InitialiseView() { MultipleViewports(); }
 
 MainWindow::~MainWindow() { delete ui; }
 void MainWindow::on_actionExit_triggered() { QApplication::quit(); }
@@ -143,16 +142,12 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QTimer::singleShot(100, this, SLOT(UpdateViewForDICOM()));
 }
 
-#include "vtkImageResize.h"
-#include "vtkImageSincInterpolator.h"
-#define AV_MIN_INT16 -32768L
-
-vtkSmartPointer<vtkImageData> resizeImage(
+vtkSmartPointer<vtkImageData> MainWindow::resizeImage(
     vtkSmartPointer<vtkImageData>& input) {
   vtkSmartPointer<vtkImageSincInterpolator> interpolator =
       vtkSmartPointer<vtkImageSincInterpolator>::New();
 
-  //interpolator->SetWindowFunction(0);  // 0 to 10
+  // interpolator->SetWindowFunction(0);  // 0 to 10
 
   vtkSmartPointer<vtkImageResize> resize =
       vtkSmartPointer<vtkImageResize>::New();
@@ -196,21 +191,25 @@ vtkSmartPointer<vtkImageData> resizeImage(
             qint16* inputVoxel =
                 (qint16*)t->GetScalarPointer(x - xgap, (y - ygap), z);
             inputVoxelv = inputVoxel[0];
+            qint16* outputVoxel = (qint16*)t2->GetScalarPointer(x, y, z);
+            outputVoxel[0] = inputVoxelv;
+
+            double* i1 = static_cast<double*>(
+                t->GetScalarPointer(x - xgap, (y - ygap), z));
+            double* o1 = static_cast<double*>(t2->GetScalarPointer(x, y, z));
+            o1[0] = i1[0];
+
+          } else {
+            qint16* outputVoxel = (qint16*)t2->GetScalarPointer(x, y, z);
+            outputVoxel[0] = inputVoxelv;
           }
-
-          qint16* outputVoxel = (qint16*)t2->GetScalarPointer(x, y, z);
-
-          outputVoxel[0] = inputVoxelv;
         }
 
     resize = vtkSmartPointer<vtkImageResize>::New();
     resize->SetInputData(t2);
   }
 
-  // Image remains unchanged.
-  // It's dimensions change. Number of points on the line are changed. Line
-  // remains same
-  resize->SetOutputDimensions(100, 100, 1);
+  resize->SetOutputDimensions(200, 200, 1);
   resize->InterpolateOn();
   resize->SetInterpolator(interpolator);
   resize->Update();
@@ -219,10 +218,15 @@ vtkSmartPointer<vtkImageData> resizeImage(
   return out;
 }
 
-vtkSmartPointer<vtkImageData> ResizeMe(vtkSmartPointer<vtkImageData> input) {
+vtkSmartPointer<vtkImageData> MainWindow::ResizeMe(
+    vtkSmartPointer<vtkImageData> input) {
+  int newWidth = 200;
+  int* D = input->GetDimensions();
+  double nh = (double)(D[1] * newWidth) / D[0];
+  int newHeight = ceil(nh);
   vtkNew<vtkImageResize> resize;
   resize->SetInputData(input);
-  resize->SetOutputDimensions(200, 200, 1);
+  resize->SetOutputDimensions(newWidth, newHeight, 1);
   resize->Update();
   vtkSmartPointer<vtkImageData> output = resize->GetOutput();
   return output;
@@ -233,53 +237,18 @@ void MainWindow::UpdateViewForDICOM() {
   reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
   reader->Update();
 
-  vtkSmartPointer<vtkImageData> v1 = reader->GetOutput();
+  m_imageData = reader->GetOutput();
+  ResizeUsingInterpolation();
+}
+
+void MainWindow::ResizeUsingInterpolation() {
+  vtkSmartPointer<vtkImageData> v1 = m_imageData;
+  AddImageInLeftRenderer(v1);
+  PrintImageDetails(v1);
+
   vtkSmartPointer<vtkImageData> v2 = resizeImage(v1);
-  vtkSmartPointer<vtkImageData> v3 = ResizeMe(v2);
-
-  vtkNew(vtkImageViewer2, imageViewer);
-  // imageViewer->SetInputConnection(reader->GetOutputPort());
-  imageViewer->SetInputData(v3);
-  imageViewer->SetSliceOrientationToXY();
-  m_vtkImageViewer = imageViewer.Get();
-  m_slider->setMinimum(imageViewer->GetSliceMin());
-  m_slider->setMaximum(imageViewer->GetSliceMax());
-  m_slider->setValue(imageViewer->GetSlice());
-
-  vtkNew(vtkTextProperty, sliceTextProp);
-  sliceTextProp->SetFontFamilyToCourier();
-  sliceTextProp->SetFontSize(20);
-  sliceTextProp->SetVerticalJustificationToBottom();
-  sliceTextProp->SetJustificationToLeft();
-
-  vtkNew(vtkTextMapper, sliceTextMapper);
-  std::string msg = StatusMessage::Format(imageViewer->GetSliceMin(),
-                                          imageViewer->GetSliceMax());
-  sliceTextMapper->SetInput(msg.c_str());
-  sliceTextMapper->SetTextProperty(sliceTextProp);
-  vtkNew(vtkActor2D, sliceTextActor);
-  sliceTextActor->SetMapper(sliceTextMapper);
-  sliceTextActor->SetPosition(15, 10);
-
-  // create an interactor with our own style (inherit from
-  // vtkInteractorStyleImage) in order to catch mousewheel and key events
-  vtkNew(vtkRenderWindowInteractor, renderWindowInteractor);
-  vtkNew(myVtkInteractorStyleImage, myInteractorStyle);
-  myInteractorStyle->setWindow(this);
-  myInteractorStyle->SetImageViewer(imageViewer);
-  myInteractorStyle->SetStatusMapper(sliceTextMapper);
-  renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
-
-  // add slice status message and usage hint message to the renderer
-  imageViewer->GetRenderer()->AddActor2D(sliceTextActor);
-  imageViewer->SetRenderWindow(m_vtkView->GetRenderWindow());
-  m_vtkView->GetRenderWindow()->SetInteractor(renderWindowInteractor);
-
-  // initialize rendering and interaction
-  imageViewer->Render();
-  imageViewer->GetRenderer()->SetBackground(1, 1, 0);
-  imageViewer->GetRenderer()->ResetCamera();
-  renderWindowInteractor->Start();
+  AddImageInRightRenderer(v2);
+  PrintImageDetails(v2);
 }
 
 void MainWindow::sliderChanged(int value) {
@@ -298,68 +267,13 @@ void MainWindow::sliderChanged(int value) {
 void MainWindow::updateSlider(int value) { m_slider->setValue(value); }
 
 void MainWindow::test1() {
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
-  reader->Update();
+  vtkSmartPointer<vtkImageData> v1 = m_imageData;
+  AddImageInLeftRenderer(v1);
+  PrintImageDetails(v1);
 
-  vtkSmartPointer<vtkImageData> imageData = reader->GetOutput();
-  vtkNew(vtkImageData, output);
-  fetchYZImage(imageData, output);
-  printImageDetails(imageData);
-  printImageDetails(output);
-
-  vtkNew(vtkImageMapper, imageMapper);
-  imageMapper->SetInputData(output);
-  imageMapper->SetColorWindow(255);
-  imageMapper->SetColorLevel(127.5);
-
-  vtkNew(vtkActor2D, imageActor);
-  imageActor->SetMapper(imageMapper);
-  imageActor->SetPosition(2, 2);
-
-  vtkNew(vtkNamedColors, colors);
-  vtkNew(vtkRenderer, renderer);
-  renderer->SetViewport(0, 0.5, 0.5, 1);
-  renderer->SetBackground(0, 0, 1);
-  ViewportBorder(renderer, colors->GetColor3d("Gold").GetData(), true);
-
-  m_vtkView->GetRenderWindow()->AddRenderer(renderer);
-  renderer->AddActor2D(imageActor);
-  AddLineActor(renderer);
-  AddSphereActor(renderer);
-
-  m_vtkView->GetRenderWindow()->Render();
-}
-
-void MainWindow::addDicomImageInViewport() {
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
-  reader->Update();
-  vtkSmartPointer<vtkImageData> imageData = reader->GetOutput();
-
-  vtkNew(vtkImageMapper, imageMapper);
-  imageMapper->SetInputData(imageData);
-  imageMapper->SetColorWindow(255);
-  imageMapper->SetColorLevel(127.5);
-
-  vtkNew(vtkActor2D, imageActor);
-  imageActor->SetMapper(imageMapper);
-  imageActor->SetPosition(20, 20);
-
-  // Setup renderers
-  vtkNew(vtkRenderer, renderer);
-  renderer->SetViewport(0, 0.7, 0.3, 1);
-
-  // Setup render window
-  vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
-  renderWindow->AddRenderer(renderer);
-
-  renderer->AddActor2D(imageActor);
-  vtkNew(vtkNamedColors, colors);
-  renderer->SetBackground(colors->GetColor3d("Silver").GetData());
-
-  renderWindow->Render();
-  renderer->ResetCamera();
+  vtkSmartPointer<vtkImageData> v2 = ResizeMe(v1);
+  AddImageInRightRenderer(v2);
+  PrintImageDetails(v2);
 }
 
 void MainWindow::prepareImageData(vtkSmartPointer<vtkImageData>& input,
@@ -388,321 +302,113 @@ void MainWindow::prepareImageData(vtkSmartPointer<vtkImageData>& input,
   }
 }
 
-void MainWindow::fetchXYImage(vtkSmartPointer<vtkImageData>& input,
-                              vtkSmartPointer<vtkImageData>& output) {
-  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
-  int* dims = input->GetDimensions();
-  int xdim = dims[0];
-  int ydim = dims[1];
-  int zdim = dims[2];
-
-  output->SetDimensions(xdim, ydim, 1);
-  output->AllocateScalars(VTK_SHORT, 1);
-  output->SetSpacing(input->GetSpacing());
-  output->SetOrigin(input->GetOrigin());
-
-  for (int y = 0; y < ydim; y++) {
-    for (int x = 0; x < xdim; x++) {
-      short* pixel = static_cast<short*>(output->GetScalarPointer(x, y, 0));
-      short* sourcepixel =
-          static_cast<short*>(input->GetScalarPointer(x, y, 0));
-      pixel[0] = sourcepixel[0];
-    }
-  }
-}
-
-void MainWindow::fetchYZImage(vtkSmartPointer<vtkImageData>& input,
-                              vtkSmartPointer<vtkImageData>& output) {
-  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
-  int* dims = input->GetDimensions();
-  int xdim = dims[0];
-  int ydim = dims[1];
-  int zdim = dims[2];
-
-  // Specify the size of the image data
-  output->SetDimensions(ydim, zdim, 1);
-  output->AllocateScalars(VTK_SHORT, 1);
-  output->SetSpacing(input->GetSpacing());
-  output->SetOrigin(input->GetOrigin());
-
-  // Fill every entry of the image data with "2.0"
-  for (int z = 0; z < zdim; z++) {
-    for (int y = 0; y < ydim; y++) {
-      short* pixel = static_cast<short*>(output->GetScalarPointer(y, z, 0));
-      short* sourcepixel =
-          static_cast<short*>(input->GetScalarPointer(xdim / 2, y, z));
-      pixel[0] = sourcepixel[0];
-    }
-  }
-}
-
-void MainWindow::fetchXZImage(vtkSmartPointer<vtkImageData>& input,
-                              vtkSmartPointer<vtkImageData>& output) {
-  short* data = static_cast<short*>(input->GetScalarPointer(0, 0, 0));
-  int* dims = input->GetDimensions();
-  int xdim = dims[0];
-  int ydim = dims[1];
-  int zdim = dims[2];
-
-  // Specify the size of the image data
-  output->SetDimensions(xdim, zdim, 1);
-  output->AllocateScalars(VTK_SHORT, 1);
-  output->SetSpacing(input->GetSpacing());
-  output->SetOrigin(input->GetOrigin());
-
-  // Fill every entry of the image data with "2.0"
-  for (int z = 0; z < zdim; z++) {
-    for (int x = 0; x < xdim; x++) {
-      short* pixel = static_cast<short*>(output->GetScalarPointer(x, z, 0));
-      short* sourcepixel =
-          static_cast<short*>(input->GetScalarPointer(x, ydim / 2, z));
-      pixel[0] = sourcepixel[0];
-    }
-  }
-}
-
-void MainWindow::AddLineActor(vtkRenderer* renderer) {
-  double p0[3] = {0.0, 0.0, 0.0};
-  double p1[3] = {20.0, 0.0, 0.0};
-
-  vtkNew(vtkLineSource, lineSource);
-  lineSource->SetPoint1(p0);
-  lineSource->SetPoint2(p1);
-
-  // Visualize
-  vtkNew(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(lineSource->GetOutputPort());
-  vtkNew(vtkActor, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetLineWidth(2);
-  vtkNew(vtkNamedColors, colors);
-  actor->GetProperty()->SetColor(colors->GetColor3d("Peacock").GetData());
-
-  renderer->AddActor(actor);
-}
-
-void MainWindow::AddSphereActor(vtkRenderer* renderer) {
-  vtkNew(vtkSphereSource, sphere);
-  sphere->SetCenter(0, 0, 0);
-  sphere->SetRadius(2);
-  sphere->Update();
-
-  vtkNew(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(sphere->GetOutputPort());
-  vtkNew(vtkActor, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(1, 0, 0);
-  renderer->AddActor(actor);
-}
-
 void MainWindow::MultipleViewports() {
   vtkNew(vtkRenderer, ren1);
   ren1->SetBackground(1.0, 1.0, 0);
   ren1->SetViewport(0, 0, 0.498, 1.0);
+  m_leftrenderer = ren1.Get();
 
   vtkNew(vtkRenderer, ren2);
   ren2->SetBackground(0, 1.0, 1.0);
   ren2->SetViewport(0.502, 0, 1.0, 1.0);
+  m_rightrenderer = ren2.Get();
 
   vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
   renderWindow->AddRenderer(ren1);
   renderWindow->AddRenderer(ren2);
+
+  vtkNew(myVtkInteractorStyleImage, myInteractorStyle);
+  m_vtkView->GetRenderWindow()->GetInteractor()->SetInteractorStyle(
+      myInteractorStyle);
 }
 
-#include "vtkActor2D.h"
-#include "vtkPolyDataMapper2D.h"
-#include "vtkPolyLine.h"
-#include "vtkProperty2D.h"
+void MainWindow::AddImageInLeftRenderer(vtkSmartPointer<vtkImageData> input) {
+  bool twoD = false;
+  if (twoD) {
+    if (m_left_actor) m_leftrenderer->RemoveActor2D(m_left_actor);
+    vtkNew(vtkImageMapper, imageMapper);
+    imageMapper->SetInputData(input);
+    imageMapper->SetColorWindow(255);
+    imageMapper->SetColorLevel(127.5);
 
-void MainWindow::createMultipleViewports() {
-  int numberOfFiles = 4;
-  vtkNew(vtkNamedColors, colors);
-  vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
-
-  double size = 1.0 / numberOfFiles;
-  for (unsigned int i = 0; static_cast<int>(i) < numberOfFiles; ++i) {
-    vtkNew(vtkSphereSource, sphere);
-    sphere->SetCenter(0, 0, 0);
-    sphere->SetRadius(2);
-    sphere->Update();
-
-    vtkNew(vtkPolyDataMapper, mapper);
-    mapper->SetInputConnection(sphere->GetOutputPort());
-
-    vtkNew(vtkActor, actor);
-    actor->SetMapper(mapper);
-    actor->GetProperty()->SetColor(colors->GetColor3d("Silver").GetData());
-
-    vtkNew(vtkRenderer, renderer);
-    renderer->AddActor(actor);
-    renderer->SetBackground(colors->GetColor3d("SlateGray").GetData());
-
-    double viewport[4];
-    viewport[0] = size * i;
-    viewport[1] = 0.0;
-    viewport[2] = size * (i + 1);
-    viewport[3] = 1.0;
-    renderer->SetViewport(viewport);
-    ViewportBorder(renderer, colors->GetColor3d("Gold").GetData(),
-                   static_cast<int>(i) == numberOfFiles - 1);
-    renderWindow->AddRenderer(renderer);
-  }
-
-  renderWindow->Render();
-}
-
-void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
-                                double* color, bool last) {
-  // points start at upper right and proceed anti-clockwise
-  vtkNew(vtkPoints, points);
-  points->SetNumberOfPoints(4);
-  points->InsertPoint(0, 1, 1, 0);
-  points->InsertPoint(1, 0, 1, 0);
-  points->InsertPoint(2, 0, 0, 0);
-  points->InsertPoint(3, 1, 0, 0);
-
-  // create cells, and lines
-  vtkNew(vtkCellArray, cells);
-  cells->Initialize();
-  vtkNew(vtkPolyLine, lines);
-
-  // only draw last line if this is the last viewport
-  // this prevents double vertical lines at right border
-  // if different colors are used for each border, then do
-  // not specify last
-  if (last) {
-    lines->GetPointIds()->SetNumberOfIds(5);
+    vtkNew(vtkActor2D, imageActor);
+    imageActor->SetMapper(imageMapper);
+    imageActor->SetPosition(20, 20);
+    m_leftrenderer->AddActor2D(imageActor);
+    m_left_actor = imageActor.Get();
   } else {
-    lines->GetPointIds()->SetNumberOfIds(4);
+    if (m_leftImageActor) m_leftrenderer->RemoveActor(m_leftImageActor);
+    vtkNew<vtkImageActor> imageActor;
+    imageActor->GetMapper()->SetInputData(input);
+    m_leftrenderer->AddActor(imageActor);
+    m_leftImageActor = imageActor.Get();
   }
-  for (unsigned int i = 0; i < 4; ++i) {
-    lines->GetPointIds()->SetId(i, i);
-  }
-  if (last) {
-    lines->GetPointIds()->SetId(4, 0);
-  }
-  cells->InsertNextCell(lines);
 
-  // now make tge polydata and display it
-  vtkNew(vtkPolyData, poly);
-  poly->Initialize();
-  poly->SetPoints(points);
-  poly->SetLines(cells);
-
-  // use normalized viewport coordinates since
-  // they are independent of window size
-  vtkNew(vtkCoordinate, coordinate);
-  coordinate->SetCoordinateSystemToNormalizedViewport();
-
-  vtkNew(vtkPolyDataMapper2D, mapper);
-  mapper->SetInputData(poly);
-  mapper->SetTransformCoordinate(coordinate);
-
-  vtkNew(vtkActor2D, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(color);
-  actor->GetProperty()->SetLineWidth(4.0);  // Line Width
-
-  renderer->AddViewProp(actor);
+  m_leftrenderer->ResetCamera();
+  m_leftrenderer->GetRenderWindow()->Render();
 }
 
-void MainWindow::printImageDetails(vtkSmartPointer<vtkImageData>& image) {
-  int* dims = image->GetDimensions();
-  int xdim = dims[0];
-  int ydim = dims[1];
-  int zdim = dims[2];
-  cout << "\nX:" << xdim << " Ydim:" << ydim << " Zdim:" << zdim;
-  double* origin = image->GetOrigin();
-  cout << "\nOrigin:" << origin[0] << "," << origin[0] << "," << origin[0];
+void MainWindow::AddImageInRightRenderer(vtkSmartPointer<vtkImageData> input) {
+  bool twoD = false;
+  if (twoD) {
+    if (m_right_actor) m_leftrenderer->RemoveActor2D(m_right_actor);
+    vtkNew(vtkImageMapper, imageMapper);
+    imageMapper->SetInputData(input);
+    imageMapper->SetColorWindow(255);
+    imageMapper->SetColorLevel(127.5);
+
+    vtkNew(vtkActor2D, imageActor);
+    imageActor->SetMapper(imageMapper);
+    imageActor->SetPosition(20, 20);
+    m_rightrenderer->AddActor2D(imageActor);
+    m_right_actor = imageActor.Get();
+  } else {
+    if (m_rightImageActor) m_rightrenderer->RemoveActor(m_rightImageActor);
+    vtkNew<vtkImageActor> imageActor;
+    imageActor->GetMapper()->SetInputData(input);
+    m_rightrenderer->AddActor(imageActor);
+    m_rightImageActor = imageActor.Get();
+  }
+
+  m_rightrenderer->ResetCamera();
+  m_rightrenderer->GetRenderWindow()->Render();
 }
 
-#include <vtkCellPicker.h>
-#include <vtkImagePlaneWidget.h>
-void MainWindow::createPlaneWidget() {
-  vtkNew(vtkSphereSource, sphere);
-  sphere->SetCenter(20, 20, 0);
-  sphere->SetRadius(10);
-  sphere->Update();
-  vtkNew(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(sphere->GetOutputPort());
-  vtkNew(vtkActor, actor);
-  actor->SetMapper(mapper);
-  actor->GetProperty()->SetColor(1, 0, 0);
+void MainWindow::test2() { ReadPng(); }
 
-  vtkNew(vtkRenderWindowInteractor, renderWindowInteractor);
-  vtkNew(vtkInteractorStyleTrackballCamera, myInteractorStyle);
-  renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
-
-  vtkNew(vtkRenderer, renderer);
-  renderer->AddActor(actor);
-
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
+void MainWindow::ReadPng() {
+  vtkSmartPointer<vtkPNGReader> reader = vtkSmartPointer<vtkPNGReader>::New();
+  reader->SetFileName("D:/1.png");
   reader->Update();
 
-  vtkSmartPointer<vtkImageData> image = reader->GetOutput();
-  int imageDims[3];
-  image->GetDimensions(imageDims);
-
-  vtkNew(vtkCellPicker, picker);
-  picker->SetTolerance(0.005);
-  vtkNew(vtkProperty, ipwProp);
-
-  // vtkNew(vtkImagePlaneWidget, plane);
-  m_plane = vtkSmartPointer<vtkImagePlaneWidget>::New();
-  m_plane->SetInteractor(renderWindowInteractor);
-  m_plane->SetPicker(picker);
-  m_plane->RestrictPlaneToVolumeOn();
-  double color[3] = {1, 0, 0};
-  m_plane->GetPlaneProperty()->SetColor(color);
-  double ambColor[3] = {0, 1, 0};
-  m_plane->GetPlaneProperty()->SetAmbientColor(ambColor);
-  m_plane->SetOrigin(image->GetOrigin());
-  m_plane->SetTexturePlaneProperty(ipwProp);
-  m_plane->TextureInterpolateOff();
-  m_plane->SetResliceInterpolateToLinear();
-  m_plane->SetInputConnection(reader->GetOutputPort());
-  m_plane->SetPlaneOrientation(2);
-  m_plane->SetSliceIndex(imageDims[2] / 2);
-  m_plane->DisplayTextOn();
-  m_plane->SetDefaultRenderer(renderer);
-  m_plane->SetWindowLevel(1708, -709);
-  m_plane->On();
-  m_plane->InteractionOn();
-
-  m_vtkView->GetRenderWindow()->AddRenderer(renderer);
-  m_vtkView->GetRenderWindow()->Render();
+  m_imageData = reader->GetOutput();
+  ResizeUsingInterpolation();
 }
 
-void MainWindow::calculateKeyPoints() {
-  double XX[3] = {m_normal_X[0], m_normal_X[1], m_normal_X[2]};
-  double YY[3] = {m_normal_Y[0], m_normal_Y[1], m_normal_Y[2]};
-  double ZZ[3] = {m_normal_Z[0], m_normal_Z[1], m_normal_Z[2]};
+void MainWindow::PrintImageDetails(vtkSmartPointer<vtkImageData> input) {
+  int dim[3];
+  input->GetDimensions(dim);
 
-  vtkMath::Normalize(XX);
-  vtkMath::MultiplyScalar(XX, 512);
-  vtkMath::Normalize(YY);
-  vtkMath::MultiplyScalar(YY, 512);
-  vtkMath::Normalize(ZZ);
-  vtkMath::MultiplyScalar(ZZ, 512);
+  std::cout << "\n\nImage size:";
+  for (int i = 0; i < 3; i++) {
+    cout << dim[i] << "  ";
+  }
 
-  vtkMath::Add(m_plane_center, XX, m_XX_1);
-  vtkMath::Add(m_plane_center, YY, m_YY_1);
-  vtkMath::Add(m_plane_center, ZZ, m_ZZ_1);
-  vtkMath::Subtract(m_plane_center, XX, m_XX_2);
-  vtkMath::Subtract(m_plane_center, YY, m_YY_2);
-  vtkMath::Subtract(m_plane_center, ZZ, m_ZZ_2);
+  int* e = input->GetExtent();
+  std::cout << "\nImage Extent:";
+  for (int i = 0; i < 6; i++) {
+    cout << e[i] << "  ";
+  }
 
-  vtkMath::Subtract(m_XX_2, YY, m_XY_origin);
-  vtkMath::Subtract(m_YY_2, ZZ, m_YZ_origin);
-  vtkMath::Subtract(m_XX_2, ZZ, m_XZ_origin);
-}
+  double* s = input->GetSpacing();
+  std::cout << "\nImage Spacing:";
+  for (int i = 0; i < 3; i++) {
+    cout << s[i] << "  ";
+  }
 
-void MainWindow::test2() {
-  vtkPlaneSource* ps =
-      static_cast<vtkPlaneSource*>(m_plane->GetPolyDataAlgorithm());
-  ps->SetCenter(0, 0, 0);
-  ps->SetPoint1(200, 200, 0);
-  ps->SetPoint2(200, 0, 0);
-  m_plane->On();
+  double* B = input->GetBounds();
+  std::cout << "\nImage Bounds:";
+  for (int i = 0; i < 6; i++) {
+    cout << B[i] << "  ";
+  }
 }

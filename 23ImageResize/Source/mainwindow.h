@@ -5,8 +5,8 @@
 
 #include "ui_mainwindow.h"
 #include "vtkImageData.h"
-#include "vtkSmartPointer.h"
 #include "vtkImagePlaneWidget.h"
+#include "vtkSmartPointer.h"
 
 class QVTKWidget;
 class QVBoxLayout;
@@ -14,6 +14,8 @@ class vtkImageViewer2;
 class QScrollBar;
 class QGridLayout;
 class vtkRenderer;
+class vtkActor2D;
+class vtkImageActor;
 
 namespace Ui {
 class MainWindow;
@@ -30,23 +32,23 @@ class MainWindow : public QMainWindow {
   ~MainWindow();
 
   void InitialiseView();
-
   void updateSlider(int value);
 
  protected:
   void initialiseWithDICOM();
-  void addDicomImageInViewport();
   void prepareImageData(vtkSmartPointer<vtkImageData>& input, int direction,
                         vtkSmartPointer<vtkImageData>& output);
-  void fetchXYImage(vtkSmartPointer<vtkImageData>& input,
-                    vtkSmartPointer<vtkImageData>& output);
-  void fetchYZImage(vtkSmartPointer<vtkImageData>& input,
-                    vtkSmartPointer<vtkImageData>& output);
-  void fetchXZImage(vtkSmartPointer<vtkImageData>& input,
-                    vtkSmartPointer<vtkImageData>& output);
+  vtkSmartPointer<vtkImageData> ResizeMe(vtkSmartPointer<vtkImageData> input);
+  vtkSmartPointer<vtkImageData> resizeImage(
+      vtkSmartPointer<vtkImageData>& input);
 
-  void AddLineActor(vtkRenderer* renderer);
-  void AddSphereActor(vtkRenderer* renderer);
+  void AddImageInLeftRenderer(vtkSmartPointer<vtkImageData> input);
+  void AddImageInRightRenderer(vtkSmartPointer<vtkImageData> input);
+
+  void PrintImageDetails(vtkSmartPointer<vtkImageData> input);
+  
+  void ResizeUsingInterpolation();
+  void ReadPng();
 
  private slots:
 
@@ -57,12 +59,6 @@ class MainWindow : public QMainWindow {
   void test1();
   void test2();
   void MultipleViewports();
-  void createMultipleViewports();
-  void ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
-                                  double* color, bool last);
-  void printImageDetails(vtkSmartPointer<vtkImageData>& image);
-  void createPlaneWidget();
-  void calculateKeyPoints();
 
  private:
   Ui::MainWindow* ui;
@@ -75,26 +71,14 @@ class MainWindow : public QMainWindow {
 
   QString m_dicom_dir_path = "";
 
-   vtkSmartPointer<vtkImagePlaneWidget> m_plane;
+  vtkSmartPointer<vtkImageData> m_imageData;
+  vtkActor2D* m_left_actor = nullptr;
+  vtkActor2D* m_right_actor = nullptr;
+  vtkImageActor* m_leftImageActor = nullptr;
+  vtkImageActor* m_rightImageActor = nullptr;
 
-  // Define center point of planer
-  double m_plane_center[3];
-
-  // Define Normal vectors of planes
-  double m_normal_Z[3];
-  double m_normal_X[3];
-  double m_normal_Y[3];
-
-  // Points away
-  double m_XX_1[3];
-  double m_YY_1[3];
-  double m_ZZ_1[3];
-  double m_XX_2[3];
-  double m_YY_2[3];
-  double m_ZZ_2[3];
-  double m_XY_origin[3];
-  double m_YZ_origin[3];
-  double m_XZ_origin[3];
+  vtkRenderer* m_leftrenderer;
+  vtkRenderer* m_rightrenderer;
 };
 
 #endif  // MAINWINDOW_H

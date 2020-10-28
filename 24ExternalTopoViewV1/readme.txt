@@ -1,10 +1,5 @@
-This project is used to demo use of resize operation for Image.
-There are 2 methods to resize. One using aspect ratio.
-Other uses aspect ration and resizes it to given size by adding black strips
-to top and bottom. 
-
-This project shows how to use vtk along with QT widgets to create visualization application. 
-This has only one VTK view and can be used to quickly test some VTK api 
+This project shows how to use vtk for reading DICOM files and display them in View so that they can be seen using 
+plane widgets and you can navigate on them 
 
 PRECONDITION
 ===================
