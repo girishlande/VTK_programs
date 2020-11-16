@@ -23,9 +23,12 @@
 
 #include "avTopoObserver.h"
 
+std::mutex m_topoViewerMutex;
+
 avTopoViewerEx::avTopoViewerEx(vtkSmartPointer<vtkImageData> topoImage,
-                               vtkSmartPointer<vtkRenderer> renderer)
-    : m_topoImage(topoImage), m_renderer(renderer) {
+                               vtkSmartPointer<vtkRenderer> renderer,
+    const QString& seriesId)
+    : m_topoImage(topoImage), m_renderer(renderer), m_serieID(seriesId) {
   RegisterCallbacks();
   avTopoObserver::getInstance().RegisterTopo(this);
 }
@@ -207,6 +210,8 @@ void avTopoViewerEx::AddTopoImage() {
   p2->SetValue(m_topoWidth, m_topoHeight);
   m_topoActor = imageActor.Get();
   m_topoActor->SetDisplayPosition(m_topoX_DC, m_topoY_DC);
+  m_originalPositionX_DC = m_topoX_DC;
+  m_originalPositionY_DC = m_topoY_DC;
 
   m_renderer->AddActor2D(imageActor);
 }
@@ -301,13 +306,15 @@ void avTopoViewerEx::CacheWindowDimension() {
   // Viewport width and height in device space
   double* v = m_renderer->GetViewport();
   double vMinX = v[0];
-  double vMaxX = v[2];
   double vMinY = v[1];
+  double vMaxX = v[2];
   double vMaxY = v[3];
   double viewportWidth = vMaxX - vMinX;
   double viewportHeight = vMaxY - vMinY;
   m_viewportWidthDC = m_windowWidth * viewportWidth;
   m_viewportHeightDC = m_windowHeight * viewportHeight;
+  m_viewportX = ceil(vMinX * m_windowWidth);
+  m_viewportY = ceil(vMinY * m_windowHeight);
 
   // topmargin and leftmargin in device space
   m_topMargin_DC = m_topMargin * m_viewportHeightDC;
@@ -345,10 +352,8 @@ void avTopoViewerEx::ProcessMousePoint(int mx, int my) {
 
       avTopoObserver::getInstance().PositionChanging(this,moveX, moveY);
 
-      m_topoActor->SetDisplayPosition(newXdevice, newYdevice);
-      m_borderActor->SetDisplayPosition(newXdevice, newYdevice);
-      m_LineActor1->SetDisplayPosition(newXdevice, newYdevice);
-      m_LineActor2->SetDisplayPosition(newXdevice, newYdevice);
+      UpdateActorPosition(newXdevice, newYdevice);
+
       m_renderer->GetRenderWindow()->Render();
     }
   } else {
@@ -361,6 +366,7 @@ void avTopoViewerEx::LeftButtonDown(int mx, int my) {
     m_topoDragging = true;
     m_dragStartX = mx;
     m_dragStartY = my;
+    avTopoObserver::getInstance().BeginPositioning(this);
   }
 }
 
@@ -511,10 +517,7 @@ void avTopoViewerEx::PositionChanging(int moveX, int moveY) {
   int newYdevice = m_topoY_DC + moveY;
   if (m_topoActor) {
     RestrictWithinViewport(newXdevice, newYdevice);
-    m_topoActor->SetDisplayPosition(newXdevice, newYdevice);
-    m_borderActor->SetDisplayPosition(newXdevice, newYdevice);
-    m_LineActor1->SetDisplayPosition(newXdevice, newYdevice);
-    m_LineActor2->SetDisplayPosition(newXdevice, newYdevice);
+    UpdateActorPosition(newXdevice, newYdevice);
     m_renderer->GetRenderWindow()->Render();
   }
 }
@@ -527,5 +530,34 @@ void avTopoViewerEx::PositionUpdated(int moveX, int moveY) {
   m_topoY_DC = newYdevice;
 }
 
+void avTopoViewerEx::ResetPosition() {
+    std::lock_guard<std::mutex> guard(m_topoViewerMutex);
+
+    m_topoX_DC = m_originalPositionX_DC;
+    m_topoY_DC = m_originalPositionY_DC;
+    UpdateActorPosition(m_topoX_DC, m_topoY_DC);
+}
+
+void avTopoViewerEx::SetPositionRelativeToViewport(int relativeX, int relativeY) {
+    std::lock_guard<std::mutex> guard(m_topoViewerMutex);
+
+    m_topoX_DC = m_viewportX + relativeX;
+    m_topoY_DC = m_viewportY + relativeY;
+    UpdateActorPosition(m_topoX_DC, m_topoY_DC);
+}
+
+void avTopoViewerEx::GetPositionRelativeToViewport(int& relativeX, int& relativeY) {
+    relativeX = m_topoX_DC - m_viewportX;
+    relativeY = m_topoY_DC - m_viewportY;
+}
+
+void avTopoViewerEx::UpdateActorPosition(int dx, int dy) {
+    m_topoActor->SetDisplayPosition(dx, dy);
+    m_borderActor->SetDisplayPosition(dx, dy);
+    m_LineActor1->SetDisplayPosition(dx, dy);
+    m_LineActor2->SetDisplayPosition(dx, dy);
+}
+
 void avTopoViewerEx::SetGroupId(int id) { m_groupId = id; }
 int avTopoViewerEx::GroupId() { return m_groupId; }
+QString avTopoViewerEx::SeriesId() { return m_serieID; }

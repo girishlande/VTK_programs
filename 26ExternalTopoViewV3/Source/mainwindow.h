@@ -57,6 +57,7 @@ class MainWindow : public QMainWindow {
   void test1();
   void test2();
   void test3();
+  void test4();
   void sliderChanged(int value);
   void LayoutChanged(int index);
   void initialiseWithDICOM();
@@ -83,6 +84,7 @@ class MainWindow : public QMainWindow {
   void ConvertImageVolumeToSeparateImages();
   void FetchXYImage(vtkSmartPointer<vtkImageData> output, int Zindex);
   void ToggleVisibility();
+  void ResetPosition();
   void ToggleSynchronization();
   void DrawTopoEx();
   void UpdateTopoEx(int sliceIndex, int topoIndex);
@@ -136,6 +138,8 @@ class MainWindow : public QMainWindow {
   double m_topoWidth = 0.2;
   double m_topoLeftMargin = 0.2;
   double m_topoTopMargin = 0.2;
+
+  bool m_visibility = true;
 };
 
 #endif  // MAINWINDOW_H
