@@ -7,6 +7,7 @@
 #include <vtkNamedColors.h>
 #include <vtkSmartPointer.h>
 
+#include <vector>
 #include <mutex>
 
 class vtkRenderer;
@@ -16,6 +17,13 @@ class vtkImageActor;
 class vtkProperty2D;
 class vtkRenderWindowInteractor;
 class vtkImageMapper;
+class vtkTextActor;
+
+struct ScanlineAnnotation {
+    vtkTextActor* actor;
+    int x;
+    int y;
+};
 
 class avTopoViewerEx {
 public:
@@ -44,6 +52,8 @@ public:
     void SetLineReferencePointNormalised(double minPos, double maxPos = -1.0);
     void SetMaxSlice(int sliceCount);
     void SetCurrentSlice(int slice_number);
+
+    // Updating topoview Grid lines
 
     // drag and move topoview
     void ProcessMousePoint(int mx, int my);
@@ -91,6 +101,10 @@ protected:
     void RegisterCallbacks();
     void UpdateActorPosition(int X, int Y);
 
+    void AddGridLines();
+    void AddLineNumber(int x, int y, int index, int total);
+    void UpdateScanLineNumberAnnotation(int dx, int dy);
+
 private:
     int m_sliceNumber = 0;
     int m_minSliceNumber = 0;
@@ -99,6 +113,13 @@ private:
     // Reference line End points height in topoView on scale of (0.0 to 1.0)
     double m_sliceMinPos = 0.2;
     double m_sliceMaxPos = 0.4;
+
+    // Grid points 
+    double m_GridMinX = 0.0;
+    double m_GridMinY = 0.0;
+    double m_GridMaxX = 1.0;
+    double m_GridMaxY = 1.0;
+    int m_GridMinGap = 1;
 
     int m_topoX_DC = 0;
     int m_topoY_DC = 0;
@@ -118,7 +139,7 @@ private:
     // TopoView position in normalised viewport coordinates
     double m_topoX = 0.0;
     double m_topoY = 0.0;
-    double m_topoWidth = 0.20;
+    double m_topoWidth = 0.2;
     double m_topoHeight = 0.2;
     double m_topMargin = 0.1;
     double m_leftMargin = 0.05;
@@ -148,6 +169,9 @@ private:
 
     vtkActor2D* m_topoActor = nullptr;
     vtkActor2D* m_borderActor = nullptr;
+
+    vtkActor2D* m_scanLinesActor = nullptr;
+    std::vector<ScanlineAnnotation> m_scanNumbers;
 
     vtkSmartPointer<vtkImageData> m_topoImage;
     vtkSmartPointer<vtkRenderer> m_renderer;
