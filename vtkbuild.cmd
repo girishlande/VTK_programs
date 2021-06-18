@@ -1,3 +1,9 @@
+:: Download vtk from kitware website. 
+:: Folder will be named something like vtk8.2  Copy this folder in some parent folder like D:/VTK 
+:: Rename this folder to source
+:: copy this script in parent folder. 
+:: Start command prompt in admin mode and then execute this script. 
+
 @echo off
 
 setlocal 
@@ -36,10 +42,10 @@ cmake ../source -DVTK_QT_VERSION:STRING=5 \
 	 -DModule_vtkGUISupportQtOpenGL:BOOL=ON \
 	 -DModule_vtkImagingOpenGL2:BOOL=ON \
 	 -DModule_vtkRenderingLICOpenGL2:BOOL=ON \
-	 -DQt5_DIR:PATH=C:/dev/Packages/hologic.qt.bin.5.12.2/lib/cmake/Qt5 \
-     -DQT_QMAKE_EXECUTABLE:PATH=C:/dev/Packages/hologic.qt.bin.5.12.2/bin/qmake \
-     -DCMAKE_PREFIX_PATH:PATH=C:/dev/Packages/hologic.qt.bin.5.12.2/lib/cmake/Qt5  \
-	 -DQt5OpenGL_DIR:PATH=C:/dev/Packages/hologic.qt.bin.5.12.2/lib/cmake/Qt5OpenGL  \
+	 -DQt5_DIR:PATH=C:/Qt/Qt5.14.2/5.14.2/msvc2017_64/lib/cmake/Qt5 \
+     -DQT_QMAKE_EXECUTABLE:PATH=C:/Qt/Qt5.14.2/5.14.2/msvc2017_64/bin/qmake \
+     -DCMAKE_PREFIX_PATH:PATH=C:/Qt/Qt5.14.2/5.14.2/msvc2017_64/lib/cmake/Qt5  \
+	 -DQt5OpenGL_DIR:PATH=C:/Qt/Qt5.14.2/5.14.2/msvc2017_64/lib/cmake/Qt5OpenGL  \
      -DBUILD_SHARED_LIBS:BOOL=ON
 
 cmake --build . --target ALL_BUILD --config %mode% --parallel 4
