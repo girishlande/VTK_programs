@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Change below path to point to correct installation 
-set(VTK_DIR D:/repos/install/VTK/lib/cmake/vtk-8.2)
+set(VTK_DIR D:/setups/VTK/install/lib/cmake/vtk-8.2)
 
 if(CMAKE_VERSION VERSION_LESS "3.7.0")
     set(CMAKE_INCLUDE_CURRENT_DIR ON)

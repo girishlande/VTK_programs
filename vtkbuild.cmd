@@ -49,7 +49,7 @@ cmake ../source -DVTK_QT_VERSION:STRING=5 \
      -DBUILD_SHARED_LIBS:BOOL=ON
 
 cmake --build . --target ALL_BUILD --config %mode% --parallel 4
-::cmake --build . --target INSTALL --config %mode%
+cmake --build . --target INSTALL --config %mode%
 popd
 
 
