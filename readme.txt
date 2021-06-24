@@ -1,7 +1,7 @@
 # VTK_programs
 Precondition: To Run these programs you need visual studio an You will have to build VTK libraries using 
-script vtkbuild.cmd It makes use of cmake . You will have to make some changes in copydlls.cmd script so that 
-it refers to the correct path for copying dlls 
+script vtkbuild.cmd It makes use of cmake . Once built you make sure that you build "Install" subproject of the 
+vtk. THis will create binaries and includes in once place.  
 
 
 These are some of my VTK programs that I tried while playing around with VTK and learning basics
