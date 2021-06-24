@@ -1,17 +1,17 @@
 #ifndef DICOMINTERACTIONSTYLE_H
 #define DICOMINTERACTIONSTYLE_H
 
+#include <vtkAbstractPicker.h>
 #include <vtkActor.h>
+#include <vtkActor2D.h>
+#include <vtkDICOMImageReader.h>
+#include <vtkImageViewer2.h>
+#include <vtkInteractorStyleImage.h>
 #include <vtkObjectFactory.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkRenderer.h>
 #include <vtkSmartPointer.h>
-// headers needed for this example
-#include <vtkActor2D.h>
-#include <vtkDICOMImageReader.h>
-#include <vtkImageViewer2.h>
-#include <vtkInteractorStyleImage.h>
 #include <vtkTextMapper.h>
 #include <vtkTextProperty.h>
 // needed to easily convert int to std::string
@@ -28,10 +28,10 @@ class StatusMessage {
 };
 
 // Define own interaction style
-class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
+class DicomInteractionStyle : public vtkInteractorStyleImage {
  public:
-  static myVtkInteractorStyleImage* New();
-  vtkTypeMacro(myVtkInteractorStyleImage, vtkInteractorStyleImage)
+  static DicomInteractionStyle* New();
+  vtkTypeMacro(DicomInteractionStyle, vtkInteractorStyleImage)
 
       void setWindow(MainWindow* w) {
     m_window = w;
@@ -73,7 +73,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
       _StatusMapper->SetInput(msg.c_str());
       _ImageViewer->Render();
       if (m_window) {
-        m_window->updateSlider(_Slice);
+        // m_window->updateSlider(_Slice);
       }
     }
   }
@@ -86,7 +86,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
       _StatusMapper->SetInput(msg.c_str());
       _ImageViewer->Render();
       if (m_window) {
-        m_window->updateSlider(_Slice);
+        // m_window->updateSlider(_Slice);
       }
     }
   }
@@ -102,9 +102,7 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     vtkInteractorStyleImage::OnKeyDown();
   }
 
-  virtual void OnMouseWheelForward() {
-    MoveSliceForward();
-  }
+  virtual void OnMouseWheelForward() { MoveSliceForward(); }
 
   virtual void OnMouseWheelBackward() {
     if (_Slice > _MinSlice) {
@@ -114,8 +112,30 @@ class myVtkInteractorStyleImage : public vtkInteractorStyleImage {
     // in case another interactorstyle is used (e.g. trackballstyle, ...)
     // vtkInteractorStyleImage::OnMouseWheelBackward();
   }
+
+  virtual void OnMouseMove() {
+    
+  }
+
+  void printMousePosition() {
+    cout << "\n Mouse pos: " << this->Interactor->GetEventPosition()[0] << " "
+         << this->Interactor->GetEventPosition()[1];
+    double picked[3];
+    this->Interactor->GetPicker()->GetPickPosition(picked);
+    std::cout << "\n Picked value: " << picked[0] << " " << picked[1] << " "
+              << picked[2];
+  }
+
+  virtual void OnLeftButtonDown() {
+    vtkInteractorStyleTrackballCamera::OnLeftButtonDown();
+    if (m_window) {
+      int x = this->Interactor->GetEventPosition()[0];
+      int y = this->Interactor->GetEventPosition()[1];
+      m_window->hightlightActivePort(x, y);
+    }
+  }
 };
 
-vtkStandardNewMacro(myVtkInteractorStyleImage)
+vtkStandardNewMacro(DicomInteractionStyle)
 
 #endif  // DICOMINTERACTIONSTYLE_H

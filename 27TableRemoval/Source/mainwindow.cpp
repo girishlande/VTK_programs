@@ -6,22 +6,16 @@
 #include <QFileDialog.h>
 #include <QGridLayout.h>
 #include <QSplitter.h>
-#include <QStackedWidget.h>
 #include <qdebug.h>
-#include <qscrollbar.h>
 #include <vtkActor.h>
 #include <vtkActor2D.h>
-#include <vtkConeSource.h>
 #include <vtkDICOMImageReader.h>
 #include <vtkImageViewer2.h>
 #include <vtkInteractorStyleImage.h>
-#include <vtkOBJReader.h>
-#include <vtkObjectFactory.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkRenderer.h>
-#include <vtkSTLReader.h>
 #include <vtkSmartPointer.h>
 #include <vtkSphereSource.h>
 #include <vtkTextMapper.h>
@@ -32,13 +26,19 @@
 #include <QTimer>
 #include <sstream>
 
+#include "PlaneWidgetCallback.h"
 #include "QVTKWidget.h"
 #include "dicominteractionstyle.h"
 #include "modelinteractionstyle.h"
+#include "vtkCamera.h"
+#include "vtkCellPicker.h"
 #include "vtkImageData.h"
 #include "vtkImageMapper.h"
 #include "vtkLineSource.h"
 #include "vtkNamedColors.h"
+#include "vtkPolyDataMapper2D.h"
+#include "vtkPolyLine.h"
+#include "vtkProperty2D.h"
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), m_vtkImageViewer(nullptr) {
@@ -62,20 +62,16 @@ MainWindow::MainWindow(QWidget* parent)
   vboxLayout->setObjectName(QStringLiteral("vboxLayout"));
 
   m_vtkView = new QVTKWidget(this);
-  m_slider = new QScrollBar(this);
-  m_slider->setFixedWidth(20);
-  connect(m_slider, SIGNAL(valueChanged(int)), this, SLOT(sliderChanged(int)));
 
   m_container_layout = new QGridLayout;
   m_container_layout->addWidget(m_vtkView, 0, 0, 1, 1);
-  m_container_layout->addWidget(m_slider, 0, 1, 1, 1);
   QWidget* container = new QWidget;
   container->setLayout(m_container_layout);
 
   QVBoxLayout* tablayout = new QVBoxLayout();
   QPushButton* b1 = new QPushButton("Test Button", this);
   connect(b1, SIGNAL(clicked(bool)), this, SLOT(test1()));
-  QPushButton* b2 = new QPushButton("Test Button2", this);
+  QPushButton* b2 = new QPushButton("Show/Hide Planes", this);
   connect(b2, SIGNAL(clicked(bool)), this, SLOT(test2()));
   tablayout->addWidget(b1);
   tablayout->addWidget(b2);
@@ -97,29 +93,24 @@ MainWindow::MainWindow(QWidget* parent)
   vboxLayout->addWidget(splitter);
   this->setCentralWidget(centralwidget);
 
-  InitialiseView();
+  createMultipleViewports();
 }
 
-
-void MainWindow::InitialiseView() {
-  vtkNew(vtkSphereSource, sphere);
-  sphere->SetCenter(20, 20, 0);
-  sphere->SetRadius(10);
-  sphere->Update();
-  vtkNew(vtkPolyDataMapper, mapper);
-  mapper->SetInputConnection(sphere->GetOutputPort());
-  vtkNew(vtkActor, actor);
-  actor->SetMapper(mapper);
-  vtkNew(vtkRenderer, renderer);
-  renderer->AddActor(actor);
-  this->m_vtkView->GetRenderWindow()->AddRenderer(renderer);
+void MainWindow::initialiseWithDICOM() {
+  m_dicom_dir_path = "D:/git/QtProjects/12vtkQTDemo3/Source/models/series201";
+  QTimer::singleShot(100, this, SLOT(displayPlaneWidgets()));
 }
 
+// ------------------------
+// destructor and exit
+// ------------------------
 MainWindow::~MainWindow() { delete ui; }
 void MainWindow::on_actionExit_triggered() { QApplication::quit(); }
 
+// --------------------------------
+// Read DICOM file name from user
+// --------------------------------
 void MainWindow::on_actionOpen_DICOM_file_triggered() {
-  QDir dir;
   QString fileName =
       QFileDialog::getOpenFileName(this, "Select DICOM file", "../models",
                                    "DICOM Files (*.dcm);;All Files (*.*)");
@@ -133,82 +124,374 @@ void MainWindow::on_actionOpen_DICOM_file_triggered() {
   QDir dirname = fileinfo.absoluteDir();
   QString dirpath = dirname.absolutePath();
   m_dicom_dir_path = dirpath;
-  std::cout << "Girish:" << m_dicom_dir_path.toStdString();
-
-  QTimer::singleShot(100, this, SLOT(UpdateViewForDICOM()));
+  QTimer::singleShot(100, this, SLOT(displayPlaneWidgets()));
 }
 
-void MainWindow::UpdateViewForDICOM() {
-
-  vtkNew(vtkDICOMImageReader, reader);
-  reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
-  reader->Update();
-
-  vtkNew(vtkImageViewer2, imageViewer);
-  imageViewer->SetInputConnection(reader->GetOutputPort());
-  imageViewer->SetSliceOrientationToXY();
-  m_vtkImageViewer = imageViewer.Get();
-  m_slider->setMinimum(imageViewer->GetSliceMin());
-  m_slider->setMaximum(imageViewer->GetSliceMax());
-  m_slider->setValue(imageViewer->GetSlice());
-
-  vtkNew(vtkTextProperty, sliceTextProp);
-  sliceTextProp->SetFontFamilyToCourier();
-  sliceTextProp->SetFontSize(20);
-  sliceTextProp->SetVerticalJustificationToBottom();
-  sliceTextProp->SetJustificationToLeft();
-
-  vtkNew(vtkTextMapper, sliceTextMapper);
-  std::string msg = StatusMessage::Format(imageViewer->GetSliceMin(),
-                                          imageViewer->GetSliceMax());
-  sliceTextMapper->SetInput(msg.c_str());
-  sliceTextMapper->SetTextProperty(sliceTextProp);
-  vtkNew(vtkActor2D, sliceTextActor);
-  sliceTextActor->SetMapper(sliceTextMapper);
-  sliceTextActor->SetPosition(15, 10);
-
-  // create an interactor with our own style (inherit from
-  // vtkInteractorStyleImage) in order to catch mousewheel and key events
-  vtkNew(vtkRenderWindowInteractor, renderWindowInteractor);
-  vtkNew(myVtkInteractorStyleImage, myInteractorStyle);
-  myInteractorStyle->setWindow(this);
-  myInteractorStyle->SetImageViewer(imageViewer);
-  myInteractorStyle->SetStatusMapper(sliceTextMapper);
-  renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
-
-  // add slice status message and usage hint message to the renderer
-  imageViewer->GetRenderer()->AddActor2D(sliceTextActor);
-  imageViewer->SetRenderWindow(m_vtkView->GetRenderWindow());
-  m_vtkView->GetRenderWindow()->SetInteractor(renderWindowInteractor);
-
-  // initialize rendering and interaction
-  imageViewer->Render();
-  imageViewer->GetRenderer()->ResetCamera();
-  renderWindowInteractor->Start();
+// -----------------------
+// Test functions
+// -----------------------
+void MainWindow::test1() { createMultipleViewports(); }
+void MainWindow::test2() {
+  m_planeVisible = !m_planeVisible;
+  Show3DPlaneWidgets(m_planeVisible);
 }
 
-void MainWindow::sliderChanged(int value) {
-  if (m_vtkImageViewer) {
-    m_vtkImageViewer->SetSlice(value);
-    myVtkInteractorStyleImage* style =
-        (myVtkInteractorStyleImage*)m_vtkView->GetRenderWindow()
-            ->GetInteractor()
-            ->GetInteractorStyle();
-    if (style) {
-      style->updateSliceMsg(value);
+// ------------------------------
+// Display 3D plane widgets
+// ------------------------------
+void MainWindow::displayPlaneWidgets() {
+  ReadInputDICOM();
+  //set2DInteractionStyle();
+  set3DInteractionStyle();
+  Create2DImagePlaneWidgets();
+  Create3DImagePlaneWidgets();
+  createMarchingCube();
+  m_vtkView->GetRenderWindow()->Render();
+}
+
+// ------------------------------------------
+// Read DICOM image
+// ------------------------------------------
+void MainWindow::ReadInputDICOM() {
+  m_dicom_reader = vtkSmartPointer<vtkDICOMImageReader>::New();
+  m_dicom_reader->SetDirectoryName(m_dicom_dir_path.toLatin1());
+  m_dicom_reader->Update();
+
+  m_dicom_image = m_dicom_reader->GetOutput();
+}
+
+// -------------------------------------
+// Create 3D image plane widgets
+// -------------------------------------
+void MainWindow::Create3DImagePlaneWidgets() {
+  int imageDims[3];
+  m_dicom_image->GetDimensions(imageDims);
+  vtkRenderWindowInteractor* iren = m_vtkView->GetInteractor();
+
+  vtkNew(vtkCellPicker, picker);
+  picker->SetTolerance(0.005);
+  vtkNew(vtkProperty, ipwProp);
+
+  for (int i = 0; i < 3; i++) {
+    m_3DPlaneWidget[i] = vtkSmartPointer<vtkImagePlaneWidget>::New();
+    m_3DPlaneWidget[i]->SetInteractor(iren);
+    m_3DPlaneWidget[i]->SetPicker(picker);
+    m_3DPlaneWidget[i]->RestrictPlaneToVolumeOn();
+    double color[3] = {0, 0, 0};
+    color[i] = 1;
+    m_3DPlaneWidget[i]->GetPlaneProperty()->SetColor(color);
+    double black[3] = {0};
+    m_3DPlaneWidget[i]->GetPlaneProperty()->SetAmbientColor(black);
+    m_3DPlaneWidget[i]->SetTexturePlaneProperty(ipwProp);
+    m_3DPlaneWidget[i]->TextureInterpolateOff();
+    m_3DPlaneWidget[i]->SetResliceInterpolateToLinear();
+    m_3DPlaneWidget[i]->SetInputConnection(m_dicom_reader->GetOutputPort());
+    m_3DPlaneWidget[i]->SetPlaneOrientation(i);
+    m_3DPlaneWidget[i]->SetSliceIndex(imageDims[i] / 2);
+    m_3DPlaneWidget[i]->DisplayTextOn();
+    m_3DPlaneWidget[i]->SetDefaultRenderer(m_renderers[3]);
+    m_3DPlaneWidget[i]->SetWindowLevel(1708, -709);
+    m_3DPlaneWidget[i]->On();
+    m_3DPlaneWidget[i]->InteractionOn();
+  }
+  m_renderers[3]->ResetCamera();
+}
+
+// -------------------------------------
+// Create 2D image plane widgets
+// -------------------------------------
+void MainWindow::Create2DImagePlaneWidgets() {
+  int imageDims[3];
+  m_dicom_image->GetDimensions(imageDims);
+  vtkRenderWindowInteractor* iren = m_vtkView->GetInteractor();
+
+  vtkNew(vtkCellPicker, picker);
+  picker->SetTolerance(0.005);
+  vtkNew(vtkProperty, ipwProp);
+
+  for (int i = 0; i < 3; i++) {
+    m_2DPlaneWidget[i] = vtkSmartPointer<vtkImagePlaneWidget>::New();
+    m_2DPlaneWidget[i]->SetInteractor(iren);
+    m_2DPlaneWidget[i]->SetPicker(picker);
+    m_2DPlaneWidget[i]->RestrictPlaneToVolumeOn();
+    double color[3] = {0, 0, 0};
+    color[i] = 1;
+    m_2DPlaneWidget[i]->GetPlaneProperty()->SetColor(color);
+    double black[3] = {0};
+    m_2DPlaneWidget[i]->GetPlaneProperty()->SetAmbientColor(black);
+    m_2DPlaneWidget[i]->SetTexturePlaneProperty(ipwProp);
+    m_2DPlaneWidget[i]->TextureInterpolateOff();
+    m_2DPlaneWidget[i]->SetResliceInterpolateToLinear();
+    m_2DPlaneWidget[i]->SetInputConnection(m_dicom_reader->GetOutputPort());
+    m_2DPlaneWidget[i]->SetPlaneOrientation(i);
+    m_2DPlaneWidget[i]->SetSliceIndex(imageDims[i] / 2);
+    m_2DPlaneWidget[i]->DisplayTextOn();
+    m_2DPlaneWidget[i]->SetDefaultRenderer(m_renderers[i]);
+    m_2DPlaneWidget[i]->SetWindowLevel(1708, -709);
+    m_2DPlaneWidget[i]->On();
+    m_2DPlaneWidget[i]->InteractionOn();
+
+    vtkNew<PlaneWidgetCallback> callback;
+    callback->setWindow(this);
+    m_2DPlaneWidget[i]->AddObserver(vtkCommand::InteractionEvent, callback);
+
+    // setup camera
+    vtkCamera* camera = m_renderers[i]->GetActiveCamera();
+    double camera_pos[3] = {0, 0, 0};
+    camera_pos[i] = -100;
+    double focal_pos[3] = {0, 0, 0};
+    focal_pos[i] = 100;
+    camera->SetPosition(camera_pos);
+    camera->SetFocalPoint(focal_pos);
+
+    m_renderers[i]->ResetCamera();
+  }
+}
+
+// ------------------------------------------
+// Show / Hide 3D planes in model window
+// ------------------------------------------
+void MainWindow::Show3DPlaneWidgets(bool flag) {
+  for (int i = 0; i < 3; i++) {
+    if (flag) {
+      m_3DPlaneWidget[i]->On();
+    } else {
+      m_3DPlaneWidget[i]->Off();
     }
   }
 }
 
-void MainWindow::updateSlider(int value) { m_slider->setValue(value); }
+void MainWindow::createMultipleViewports() {
+  double viewportlimits[4][4] = {
+      {0, 0, 0.5, 0.5}, {0.5, 0, 1, 0.5}, {0, 0.5, 0.5, 1}, {0.5, 0.5, 1, 1}};
 
-void MainWindow::test1() {
+  int numViewports = 4;
+  vtkNew(vtkNamedColors, colors);
+  vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
 
+  double size = 1.0 / numViewports;
+  for (unsigned int i = 0; static_cast<int>(i) < numViewports; ++i) {
+    m_renderers[i] = vtkSmartPointer<vtkRenderer>::New();
+    m_renderers[i]->SetBackground(colors->GetColor3d("black").GetData());
+    m_renderers[i]->SetViewport(viewportlimits[i]);
+    ViewportBorder(m_renderers[i], colors->GetColor3d("Gold").GetData(), i);
+    renderWindow->AddRenderer(m_renderers[i]);
+  }
+
+  renderWindow->Render();
 }
 
-void MainWindow::test2() {
+void MainWindow::ViewportBorder(vtkSmartPointer<vtkRenderer>& renderer,
+                                double* color, int index) {
+  // points start at upper right and proceed anti-clockwise
+  vtkNew(vtkPoints, points);
+  points->SetNumberOfPoints(4);
+  points->InsertPoint(0, 1, 1, 0);
+  points->InsertPoint(1, 0, 1, 0);
+  points->InsertPoint(2, 0, 0, 0);
+  points->InsertPoint(3, 1, 0, 0);
 
+  // create cells, and lines
+  vtkNew(vtkCellArray, cells);
+  cells->Initialize();
+  vtkNew(vtkPolyLine, lines);
+
+  lines->GetPointIds()->SetNumberOfIds(5);
+  for (unsigned int i = 0; i < 4; ++i) {
+    lines->GetPointIds()->SetId(i, i);
+  }
+  lines->GetPointIds()->SetId(4, 0);
+  cells->InsertNextCell(lines);
+
+  // now make tge polydata and display it
+  vtkNew(vtkPolyData, poly);
+  poly->Initialize();
+  poly->SetPoints(points);
+  poly->SetLines(cells);
+
+  // use normalized viewport coordinates since
+  // they are independent of window size
+  vtkNew(vtkCoordinate, coordinate);
+  coordinate->SetCoordinateSystemToNormalizedViewport();
+
+  vtkNew(vtkPolyDataMapper2D, mapper);
+  mapper->SetInputData(poly);
+  mapper->SetTransformCoordinate(coordinate);
+
+  vtkNew(vtkActor2D, actor);
+  actor->SetMapper(mapper);
+  actor->GetProperty()->SetColor(color);
+  actor->GetProperty()->SetLineWidth(2.0);  // Line Width
+  m_viewBorders[index] = actor.Get();
+
+  renderer->AddViewProp(actor);
 }
 
+int MainWindow::activeViewport(int mouseX, int mouseY) {
+  // return index of active viewport fro given mouse position
+  vtkSmartPointer<vtkRenderWindow> renderWindow = m_vtkView->GetRenderWindow();
+  int* size = renderWindow->GetActualSize();
+  int X = size[0];
+  int Y = size[1];
+  // cout << "\nmx:" << mouseX << " my:" << mouseY << " screen:" << X << " " <<
+  // Y;
+  int midX = X / 2;
+  int midY = Y / 2;
+  int viewportIndex = 0;
+  if (mouseX <= midX && mouseY <= midY) {
+    viewportIndex = 0;
+  } else if (mouseX > midX && mouseY <= midY) {
+    viewportIndex = 1;
+  } else if (mouseX <= midX && mouseY > midY) {
+    viewportIndex = 2;
+  } else {
+    viewportIndex = 3;
+  }
+  cout << "\n ViewportIndex:" << viewportIndex;
+  return viewportIndex;
+}
 
+void MainWindow::hightlightActivePort(int mouseX, int mouseY) {
+  int activePortIndex = activeViewport(mouseX, mouseY);
+  if (activePortIndex != m_activeViewportIndex) {
+    m_activeViewportIndex = activePortIndex;
+    resetViewportBorders(activePortIndex);
+    vtkActor2D* activeBorder = m_viewBorders[activePortIndex];
+    activeBorder->GetProperty()->SetColor(0, 1, 1);
+    activeBorder->GetProperty()->SetLineWidth(4.0);  // Line Width
+    activeBorder->Modified();
 
+    if (m_activeViewportIndex == 3) {
+      set3DInteractionStyle();
+    } else {
+      set2DInteractionStyle();
+    }
+    m_vtkView->GetRenderWindow()->Render();
+  }
+}
+
+void MainWindow::resetViewportBorders(int exception) {
+  for (int i = 0; i < 4; i++) {
+    if (i == exception) continue;
+    vtkActor2D* activeBorder = m_viewBorders[i];
+    activeBorder->GetProperty()->SetColor(1, 1, 0);
+    activeBorder->GetProperty()->SetLineWidth(2.0);  // Line Width
+    activeBorder->Modified();
+  }
+}
+
+void MainWindow::setCurrentPosition(double pos[4]) {
+  int imageDims[3];
+  m_dicom_image->GetDimensions(imageDims);
+  for (int i = 0; i < 3; i++) {
+    int newpos = (int)pos[i];
+    int oldpos = m_2DPlaneWidget[i]->GetSliceIndex();
+    if (oldpos != newpos && newpos < imageDims[i] && newpos>=0) {
+      m_2DPlaneWidget[i]->SetSliceIndex(newpos);
+      m_2DPlaneWidget[i]->Modified();
+
+      m_3DPlaneWidget[i]->SetSliceIndex(newpos);
+      m_3DPlaneWidget[i]->Modified();
+    }
+  }
+}
+
+void MainWindow::set3DInteractionStyle() {
+  vtkNew(MouseInteractorStyle, style);
+  m_vtkView->GetInteractor()->SetInteractorStyle(style);
+  style->setWindow(this);
+  m_vtkView->GetInteractor()->Render();
+}
+
+void MainWindow::set2DInteractionStyle() {
+  vtkNew<DicomInteractionStyle> style;
+  m_vtkView->GetInteractor()->SetInteractorStyle(style);
+  style->setWindow(this);
+  m_vtkView->GetInteractor()->Render();
+}
+
+#include <vtkImageData.h>
+#include <vtkNamedColors.h>
+#include <vtkNew.h>
+#include <vtkPolyDataMapper.h>
+#include <vtkProperty.h>
+#include <vtkRenderWindow.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkRenderer.h>
+#include <vtkSphereSource.h>
+#include <vtkVersion.h>
+#include <vtkVoxelModeller.h>
+
+// vtkFlyingEdges3D was introduced in VTK >= 8.2
+#if VTK_MAJOR_VERSION >= 9 || (VTK_MAJOR_VERSION >= 8 && VTK_MINOR_VERSION >= 2)
+#define USE_FLYING_EDGES
+#else
+#undef USE_FLYING_EDGES
+#endif
+
+#ifdef USE_FLYING_EDGES
+#include <vtkFlyingEdges3D.h>
+#else
+#include <vtkMarchingCubes.h>
+#endif
+
+void MainWindow::createMarchingCube()
+{
+    vtkNew<vtkNamedColors> colors;
+
+    vtkNew<vtkImageData> volume;
+    double isoValue;
+    int argc = 3;
+    if (argc < 3)
+    {
+        vtkNew<vtkSphereSource> sphereSource;
+        sphereSource->SetPhiResolution(20);
+        sphereSource->SetThetaResolution(20);
+        sphereSource->Update();
+
+        double bounds[6];
+        sphereSource->GetOutput()->GetBounds(bounds);
+        for (unsigned int i = 0; i < 6; i += 2)
+        {
+            double range = bounds[i + 1] - bounds[i];
+            bounds[i] = bounds[i] - 0.1 * range;
+            bounds[i + 1] = bounds[i + 1] + 0.1 * range;
+        }
+        vtkNew<vtkVoxelModeller> voxelModeller;
+        voxelModeller->SetSampleDimensions(50, 50, 50);
+        voxelModeller->SetModelBounds(bounds);
+        voxelModeller->SetScalarTypeToFloat();
+        voxelModeller->SetMaximumDistance(0.1);
+
+        voxelModeller->SetInputConnection(sphereSource->GetOutputPort());
+        voxelModeller->Update();
+        isoValue = 0.5;
+        volume->DeepCopy(voxelModeller->GetOutput());
+    }
+    else
+    {
+        volume->DeepCopy(m_dicom_image);
+        isoValue = 0.5;
+    }
+
+#ifdef USE_FLYING_EDGES
+    vtkNew<vtkFlyingEdges3D> surface;
+#else
+    vtkNew<vtkMarchingCubes> surface;
+#endif
+    surface->SetInputData(volume);
+    surface->ComputeNormalsOn();
+    surface->SetValue(0, isoValue);
+
+    
+    vtkNew<vtkPolyDataMapper> mapper;
+    mapper->SetInputConnection(surface->GetOutputPort());
+    mapper->ScalarVisibilityOff();
+
+    vtkNew<vtkActor> actor;
+    actor->SetMapper(mapper);
+    actor->GetProperty()->SetColor(colors->GetColor3d("MistyRose").GetData());
+
+    m_renderers[3]->AddActor(actor);
+    m_renderers[3]->ResetCamera();
+}

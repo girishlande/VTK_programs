@@ -29,7 +29,7 @@ echo Copying dlls for %destdir%
 
 robocopy /NFL /NDL /NJH /NJS /nc /ns /np C:\Qt\Qt5.14.2\5.14.2\msvc2017_64\bin\ %destdir% *.dll
 robocopy /NFL /NDL /NJH /NJS /nc /ns /np /mir "C:\Qt\Qt5.14.2\5.14.2\msvc2017_64\plugins\platforms" %destdir%\platforms
-robocopy /NFL /NDL /NJH /NJS /nc /ns /np D:\setups\VTK\install\bin\ %destdir% *.dll
+robocopy /NFL /NDL /NJH /NJS /nc /ns /np D:\setups\VTK\build\bin\%mode% %destdir% *.dll
 
 
 endlocal

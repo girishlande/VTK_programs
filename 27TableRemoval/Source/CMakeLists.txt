@@ -47,6 +47,9 @@ add_executable(vtkQTDemo
     mainwindow.ui
     mainwindow.cpp
     main.cpp
+	dicominteractionstyle.h
+	PlaneWidgetCallback.h
+	modelinteractionstyle.h
     resource.qrc
 )
 
