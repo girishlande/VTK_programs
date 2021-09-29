@@ -145,7 +145,7 @@ void MainWindow::displayPlaneWidgets() {
   set3DInteractionStyle();
   Create2DImagePlaneWidgets();
   Create3DImagePlaneWidgets();
-  createMarchingCube();
+  //createMarchingCube();
   m_vtkView->GetRenderWindow()->Render();
 }
 
