@@ -31,6 +31,15 @@ find_package(VTK 8.2 COMPONENTS
   vtkRenderingAnnotation
   vtkRenderingVolumeOpenGL2
   vtkIOGeometry
+  vtkRenderingImage
+  vtkCommonColor
+  vtkCommonCore
+  vtkCommonDataModel
+  vtkRenderingContextOpenGL2
+  vtkRenderingCore
+  vtkRenderingFreeType
+  vtkRenderingGL2PSOpenGL2
+  vtkRenderingOpenGL2
   REQUIRED
 )
 

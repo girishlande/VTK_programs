@@ -39,6 +39,7 @@ class MainWindow : public QMainWindow {
   void UpdateViewForDICOM();
   void test1();
   void test2();
+  
 
  private:
   Ui::MainWindow* ui;

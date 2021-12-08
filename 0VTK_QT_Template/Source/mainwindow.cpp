@@ -206,8 +206,67 @@ void MainWindow::test1() {
 
 }
 
-void MainWindow::test2() {
+#include <vtkImageData.h>
+#include <vtkImageMapper.h>
+#include <vtkImageProperty.h>
+#include <vtkImageResliceMapper.h>
+#include <vtkImageSlice.h>
+#include <vtkInteractorStyleImage.h>
+#include <vtkNamedColors.h>
+#include <vtkNew.h>
+#include <vtkRenderWindow.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkRenderer.h>
+#include <vtkSmartPointer.h>
 
+void CreateColorImage(vtkImageData* image)
+{
+    image->SetDimensions(512, 512, 1);
+    image->AllocateScalars(VTK_UNSIGNED_CHAR, 3);
+
+    vtkNew<vtkNamedColors> colors;
+    auto pixelColor = colors->GetColor4ub("Red").GetData();
+    auto pixelColor2 = colors->GetColor4ub("Black").GetData();
+
+    for (unsigned int x = 0; x < 512; x++)
+    {
+        for (unsigned int y = 0; y < 512; y++)
+        {
+            unsigned char* pixel =
+                static_cast<unsigned char*>(image->GetScalarPointer(x, y, 0));
+            for (auto j = 0; j < 4; ++j)
+            {
+                if (x == y) {
+                    pixel[j] = pixelColor[j];
+                }
+                else {
+                    pixel[j] = pixelColor2[j];
+                }
+            }
+        }
+    }
+}
+
+void MainWindow::test2() {
+    vtkNew<vtkNamedColors> colors;
+
+    vtkNew<vtkImageData> colorImage;
+    CreateColorImage(colorImage);
+
+    vtkNew<vtkImageResliceMapper> imageResliceMapper;
+    imageResliceMapper->SetInputData(colorImage);
+
+    vtkNew<vtkImageSlice> imageSlice;
+    imageSlice->SetMapper(imageResliceMapper);
+    imageSlice->GetProperty()->SetInterpolationTypeToNearest();
+
+    // Setup renderers
+    vtkNew<vtkRenderer> renderer;
+    renderer->AddViewProp(imageSlice);
+    renderer->ResetCamera();
+    renderer->SetBackground(colors->GetColor3d("NavajoWhite").GetData());
+
+    this->m_vtkView->GetRenderWindow()->AddRenderer(renderer);
 }
 
 
